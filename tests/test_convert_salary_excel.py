@@ -120,6 +120,39 @@ class DetectColumnTypeTests(unittest.TestCase):
                 self.assertEqual(len(companies), 1)
                 self.assertEqual(companies[0]["city"], "Aarhus")
 
+    def test_parse_sheet_handles_ragged_rows(self):
+        # openpyxl's read_only mode yields ragged tuples for dimension-less
+        # workbooks: a row can be shorter than the header. A company row that
+        # omits its city and category cells must parse without an IndexError,
+        # be retained, and get an empty city.
+        ws = FakeWorksheet([
+            ("Company", "City", "Engineering Count", "Engineering Index"),
+            ("Example Corp",),
+            ("Other Corp", "Aarhus", 12, 105.5),
+        ])
+
+        companies = parse_sheet(ws)
+
+        self.assertEqual(len(companies), 2)
+        self.assertEqual(companies[0]["company"], "Example Corp")
+        self.assertEqual(companies[0]["city"], "")
+        self.assertEqual(companies[0]["categories"], {})
+        self.assertEqual(companies[1]["categories"]["engineering"], {"count": 12, "index": 105.5})
+
+    def test_parse_sheet_skips_row_shorter_than_company_column(self):
+        # A ragged row that ends before the company column has no company cell
+        # at all; it must be skipped, not crash the parse.
+        ws = FakeWorksheet([
+            ("Notes", "Company", "Salary Index"),
+            ("stray",),
+            ("", "Example Corp", 105.5),
+        ])
+
+        companies = parse_sheet(ws)
+
+        self.assertEqual(len(companies), 1)
+        self.assertEqual(companies[0]["company"], "Example Corp")
+
     def test_skips_free_text_column(self):
         # A free-text "Notes" column must not become a bogus salary category.
         ws = FakeWorksheet([

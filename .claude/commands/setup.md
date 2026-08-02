@@ -384,6 +384,11 @@ Present a summary:
 > - `cv/main_example.tex` - Your LaTeX CV template
 > - `.claude/skills/job-scraper/search-queries.md` - Job search queries for `/scrape`
 >
+> **Privacy note:** the files above now contain your personal data and are *tracked by git*.
+> A GitHub fork of the template is always public (forks of public repos cannot be made
+> private), so do not push these commits to a fork. Keep them local, or push to a private
+> repository instead - see SETUP.md section 8 for the private-remote setup.
+>
 > **Try it out:**
 > - Run `/scrape` to search for matching jobs right now
 > - Run `/apply` with a job posting URL to see the full application workflow

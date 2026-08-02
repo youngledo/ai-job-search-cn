@@ -13,10 +13,138 @@ per-file diff commands.
 
 ## [Unreleased]
 
+### Security & privacy
+
+- **The gitignore guard now covers every personal-output rule** - `security_guards.py`
+  additionally requires the ignore rules for Gmail sync state (`gmail_sync/`), generated
+  dashboards (`reports/`), upskill reports (`upskill/*.md`), Notion sync state
+  (`**/job_scraper/notion_sync.json`), pasted postings (`documents/postings/**`), scraper
+  markdown output (`**/job_scraper/*.md`), and behavioral-report / LinkedIn-profile PDFs.
+  With these, every `.gitignore` rule outside the guard's required list is build tooling
+  noise, so any future weakening of the personal-data boundary fails CI. All rules were
+  already present in `.gitignore`; the guard now enforces the full set. (#271)
+
+## [1.2.0] - 2026-08-01
+
+### Added
+
+- **`/rank` now persists `strengths` and `gaps` into `seen_jobs.json`** - Step 2's scoring
+  agents already produced both arrays per job; Step 4 previously kept only `rank_score`,
+  `rank_verdict`, and `rank_date`, so the honest per-posting findings were printed once in
+  Step 5 and then discarded. Both arrays are now stored verbatim and replaced (never
+  accumulated) on `--all` re-ranks, so downstream consumers of `seen_jobs.json` can read
+  real triage findings instead of re-deriving them. See
+  [discussion #258](https://github.com/MadsLorentzen/ai-job-search/discussions/258).
+- **`/upskill` aggregate mode now ingests `/rank`'s recorded gaps** - previously it only
+  read `job_search_tracker.csv` and *guessed* required skills from the `role`/`sector`/
+  `notes` columns, even though `/rank` had already fetched and scored postings that never
+  made it into the tracker. Aggregate mode now also reads ranked entries
+  (`rank_score >= 45`) from `job_scraper/seen_jobs.json`, dedupes them against tracker rows
+  on case-insensitive company+role, and prefers a job's recorded `gaps` over an inferred
+  skill list wherever both exist. The heatmap's Gap Source column now shows the
+  recorded-vs-inferred split per skill, and the report header states how many jobs came
+  from each source. Depends on #263 (`/rank` persisting `gaps`/`strengths`); see
+  [discussion #258](https://github.com/MadsLorentzen/ai-job-search/discussions/258).
+
+### Security & privacy
+
+- **SETUP.md no longer calls a fork "private working space"** - forks of public GitHub
+  repositories are always public, so that wording invited exactly the personal-data
+  exposure it seemed to rule out. Section 8 now states the fork-is-public fact plainly and
+  documents the safe alternative (a private repository with this repo as `upstream`), and
+  `/setup` ends with a matching privacy note the moment profile data first lands in
+  tracked files. Prompted by
+  [discussion #266](https://github.com/MadsLorentzen/ai-job-search/discussions/266).
+- **The gitignore guard now covers two more personal-data rules** - `security_guards.py`
+  requires `cover_letters/Cover_*.*` (the uppercase cover-letter naming variant `/apply`
+  recognizes) and `cv/*.txt` (ATS text extractions of tailored CVs) in `.gitignore`, so a
+  future change weakening either rule fails CI instead of silently making personal files
+  trackable. Both rules were already present in `.gitignore`; only the guard lagged.
+
+### Fixed
+
+- `tools/check_upstream_updates.py` no longer reports a false "up to date with upstream"
+  when it silently falls back to a fork's own `origin` remote - the default state of a
+  plain fork clone, where the script compared the fork against itself and could never
+  detect upstream updates. It now warns that the fallback remote is not the template repo,
+  shows the `git remote add upstream` command to fix it, and names the ref it actually
+  compared against. (#265)
+- Removed the vestigial `cover_letters/OpenFonts/cover.cls` - an unreferenced remnant of
+  the original font bundle that, since #252's class rename, ambiguously declared the same
+  `cover` class as the real `cover_letters/cover.cls`.
+- Added regression tests pinning #252's ragged-row bounds fix in
+  `tools/convert_salary_excel.py` (dimension-less workbooks read in `read_only` mode
+  yield rows shorter than the header).
+
+### Changed
+
+- CONTRIBUTING's "run what CI runs" list is now complete - it previously omitted
+  `tools/security_guards.py` and the exact `unittest` invocation, the precise checks a
+  contributor PR had already failed on. Prompted by
+  [issue #262](https://github.com/MadsLorentzen/ai-job-search/issues/262).
+
+## [1.1.0] - 2026-07-30
+
+### Security & privacy
+
+- **Personalized custom-template files are now gitignored regardless of engine** - the
+  ignore rules broadened from `cv/main_*.tex` to `cv/main_*.*` (and likewise for cover
+  letters), so a fork using a Typst or other non-LaTeX template no longer commits
+  personalized `main_<company>.typ` files to a public fork. The `*_example.tex` files stay
+  tracked. If you registered a custom template before this release, check
+  `git status` once after updating. (#238)
+- **Dependency review is live, for forks too** - the repo's Dependency graph is now enabled,
+  so the CI `dependency-review` job actually blocks PRs that introduce dependencies with
+  known high-severity vulnerabilities, and the job is no longer gated to the upstream repo:
+  forks get the same check, self-activating if the fork enables Dependency graph
+  (it warns-and-passes otherwise). (#254)
+
+### Added
+
+- **freehire-search: full descriptions come back with the search** - `search` now calls
+  freehire's agent search endpoint (`/api/v1/agent/jobs/search`), which serves each hit's
+  complete description instead of the search index's truncated preview. A 20-role search is
+  one request rather than 1 + 20 `detail` calls, and `/scrape`'s Step 2 no longer needs a
+  per-hit fetch for this portal. `--description-format markdown|text|html` (default
+  `markdown`) selects the rendering; `table` and `plain` output is unchanged. (#251)
 - **Custom templates: any compile-to-PDF toolchain (Typst, ...)** - `/add-template` no longer
   hardcodes a `lualatex`/`xelatex`/`pdflatex` engine enum. Custom templates now declare a
   source extension and a full compile command, so Typst (`typst compile`) registers the same
-  way a custom LaTeX template does. Stock CV/cover letter templates stay LaTeX, unchanged.
+  way a custom LaTeX template does. Stock CV/cover letter templates stay LaTeX,
+  unchanged. (#238)
+- **Application-form fields as an optional third `/apply` artifact** - when a posting's
+  application form asks screening questions, `/apply` can now offer a prep sheet of
+  grounded answers alongside the CV and cover letter. Opt-in; the default two-document
+  output never changes. (#212)
+- **Confirmed facts write back to the profile** - when `/apply` or `/interview` surfaces a
+  fact the user confirms (a skill, a date, a project detail), it is written back to the
+  profile files in the same turn instead of being lost with the conversation. (#211)
+- **CV methodology: in-progress qualifications and tenure-vs-output** - `05-cv-templates.md`
+  gains explicit rules for stating in-progress certifications/degrees honestly and for
+  checking claimed tenure against visible output (`framework_version` 1.2.1 -> 1.3.0). (#210)
+- **Scraper flags mass-posting and recycled-listing patterns** - `/scrape` marks postings
+  that look bulk-posted or recycled so they don't eat evaluation effort. (#207)
+- **Retry contract pinned in CI** - all six portal CLIs now carry 429/5xx retry-backoff
+  tests covering every fetch wrapper, so a silent regression in retry behavior trips
+  CI. (#246)
+- **README: the extension model, documented** - new Customization subsection "Extending the
+  framework: portals, templates, criteria - and borrowing from other forks": the three
+  extension points, the copy-one-folder pattern for borrowing a portal skill from another
+  fork with a read-the-code-first checklist, and why there is deliberately no installer
+  (the manual copy is the security model). Prompted by discussion #249.
+
+### Fixed
+
+- `/rank` shortlist and below-threshold tables include each posting's URL. (#236)
+- `convert_salary_excel.py`: count/index columns pair by category name instead of
+  adjacency (#219), standalone count columns store as counts (#230), and ragged rows from
+  dimension-less spreadsheets no longer crash with an IndexError (#252).
+- `cover.cls`: duplicate package imports removed and the `\ProvidesClass` name fixed to
+  match the filename, silencing a class-name-mismatch warning. (#252)
+- Portal CLI type-checking pinned to concrete `@types/bun` / `@bunli/*` versions to stop
+  environmental CI type-drift. (#226)
+- `freehire-search` points at freehire.me after the service's domain migration. (#229)
+- `verify_pdf.py`'s missing-poppler error now includes per-OS install hints. (#252)
 
 ## [1.0.0] - 2026-07-22
 
