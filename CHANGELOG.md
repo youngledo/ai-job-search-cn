@@ -13,6 +13,161 @@ per-file diff commands.
 
 ## [Unreleased]
 
+### Added
+
+- **Spec-pinning tests for the Language Gate's `/rank` contract** (#278) - four regression
+  guards in `tests/test_rank_command.py` pinning the `language_gate`/`language_note` fields
+  through Steps 2-5 of `/rank`, including the Step 4 persistence rule that was live-debugged
+  during #275 (vetoes reported in console output but `language_gate: null` on every persisted
+  entry). Mirrors the existing `gaps`/`strengths` pinning pattern. No behavior change.
+
+- **The jobnet and jobdanmark CLIs identify themselves on every API request** (#283) - their
+  `apiFetch`/`apiPost` wrappers now send an explicit `User-Agent` (`jobnet-cli/1.0`,
+  `jobdanmark-cli/1.0`) instead of Bun's anonymous default token, matching the honest
+  self-identification jobindex already uses on `htmlFetch`. The new `user-agent.test.ts`
+  suites assert the header on every request wrapper. No response behavior observed to
+  change.
+
+### Changed
+
+- **The four Danish demo portals now ship disabled** (#288) - `jobindex-search`,
+  `jobbank-search`, `jobdanmark-search`, and `jobnet-search` default to `enabled: false`,
+  and `/setup`'s job-portals question now acts on the answer: it flips them to
+  `enabled: true` when your market is Denmark, and leaves them off otherwise. Previously a
+  non-Danish user's `/scrape` ran all four Danish boards by default, spending tokens
+  fetching and filtering irrelevant listings. **Fork heads-up:** if you search the Danish
+  market, set `enabled: true` in those four `SKILL.md` files after updating (or re-run
+  `/setup --section search`); forks that already curated their portal set are unaffected.
+
+### Fixed
+
+- **The robots gate did not fail closed** (`tools/robots_check.py`, #277). Found by an
+  adversarial review run over the merged file, not by inspection. Both cases are pinned
+  in `tests/test_robots_check.py` as FAIL-OPEN REGRESSIONs:
+
+  - **A soft `200` granted permission.** A host answering `/robots.txt` with an HTML
+    error page at status 200 produces a body that parses to zero rules, and zero rules
+    read as "allowed" - so the browser-header retry ran on permission that was never
+    given. A non-empty body carrying no recognised directive is now treated as
+    unreadable. A genuinely empty file stays allow-all, per RFC 9309.
+  - **`Disallow` patterns were never percent-decoded** while the request path was, so
+    `Disallow: /foo%20bar` never matched `/foo bar` and the rule was silently skipped -
+    a fail-open on any site that encodes its own rules.
+
+- **`curl` argument hardening** (`tools/robots_check.py`). The curl argv had no `--`
+  terminator before the URL. `gate()` rebuilds the target as `scheme://host/robots.txt`
+  before calling `_fetch`, so the gate path was never exposed; this is hardening for
+  direct callers, with a test pinning the terminator, that a dash-leading argument fails
+  closed end to end, and that `gate()` never passes a caller-supplied URL through to
+  curl. `--max-redirs 5` is set explicitly rather than left to curl's default.
+
+- **Negative and fractional filter flags are rejected in the Danish portal CLIs** (#281) -
+  `--jobage` (jobindex), `--radius` (jobnet), `--category`/`--jobtitle-id` (jobdanmark), and
+  `--company` (jobbank) now validate as positive integers, completing the `page`/`limit`/
+  `per-page` tightening from #191. Some portals silently ignore invalid filter values and
+  return unfiltered results, so a mistyped ID produced wrong results instead of an error.
+- **The upstream checker reports files missing from the upstream ref instead of a silent
+  `[OK]`** (#282) - if upstream renames or deletes a tracked framework file, a fork's
+  `check_upstream_updates.py` now lists it under a `[WARNING]` summary instead of skipping
+  it and printing a false all-clear.
+- **`09-web-research.md` is now tracked by the upstream checker** - the file shipped in
+  #277 but was never added to `FRAMEWORK_FILES`, so forks got no signal when it changed.
+- **jobbank and jobdanmark CLIs identify honestly** - jobbank's `User-Agent` was a full
+  Chrome browser string and jobdanmark's detail command sent a bare `Mozilla/5.0`; both now
+  use the `Mozilla/5.0 (compatible; <portal>-cli/1.0)` token the other portal CLIs use,
+  matching the identification posture settled in #277. Verified live: both portals serve
+  identical responses to the honest token.
+
+- **A `WebFetch` 403 is no longer treated as a dead posting** - `WebFetch` sends a bot user
+  agent, and many bank and corporate sites answer it with HTTP 403 while serving the same
+  page to a browser normally. Every command read that as "page unavailable" and degraded
+  silently instead of failing loudly: `/rank` marked live postings `expired`, `/apply` fell
+  back to search-result snippets or to vague cover-letter prose, and `/scrape` stored
+  listing-page `#fragment` URLs that fetch fine but return unrelated jobs, breaking every
+  later run on that entry. New `09-web-research.md` (`framework_version` 1.0.0) is the
+  single reference: the trust boundary, a curl browser-header retry with a tag-stripping
+  extractor, a four-step escalation order, the login-wall case, why the employer's own
+  careers posting beats an aggregator listing (the requisition ID and the grade survive
+  there), and the rule that a search snippet is a lead rather than a source. Wired into
+  `/apply`, `/rank`, `/interview`, `/outcome`, `/notion-sync`, the job-scraper skill, and
+  writing-style rule 5 (`03-writing-style.md` 1.1.0 to 1.2.0).
+
+  **The retry is gated on `robots.txt`.** `WebFetch` identifies itself as `Claude-User`
+  and honors `robots.txt`, so a 403 means either a WAF default on a site whose published
+  policy allows access, or a site that has actually declined. New `tools/robots_check.py`
+  tells them apart and the escalation runs it before retrying: a disallow for `*` or
+  `Claude-User` skips the retry entirely and goes straight to finding the employer's own
+  posting. The rule is stated in the file so later edits do not erode it - *the retry
+  exists to get past bot-filtering firewalls on sites whose robots.txt permits access; it
+  is never used to override a site that has said no.* Two findings are pinned by
+  `tests/test_robots_check.py` (15 offline cases): the WAF usually blocks `robots.txt`
+  itself, so the policy is read as a browser when the honest request is refused and then
+  obeyed strictly; and `urllib.robotparser` cannot be used, because it ends a record at a
+  blank line and matches in file order, which reads a real-world policy as
+  "everything allowed".
+
+## [1.3.0] - 2026-08-03
+
+### Added
+
+- **Language Gate** - no dimension or gate anywhere in the framework checked a posting's
+  language requirements against what the candidate actually speaks (not a Scoring Dimension,
+  not a `/scrape`/`/rank` field, nothing for `/apply`'s existing generic language detection
+  to report to). Adds that check, structured like the existing Eligibility Gate, on a new
+  structured `Languages` table in CLAUDE.md / `01-candidate-profile.md` (`/setup` asks, or
+  infers it from a CV/LinkedIn export): a posting requiring a language you haven't declared
+  at all is a hard **FAIL**; one requiring a higher level than you declared in a language you
+  *do* work in is **FLAG**, not an auto-reject, so borderline cases (a strict "fluent" bar vs.
+  your own B1/B2) get your judgment instead of a silent drop; a requirement at or below your
+  declared level is a clean **PASS**. Wired through `/scrape`, `/rank`, and `/apply`, with
+  `language_gate`/`language_note` persisted into `seen_jobs.json` alongside the existing
+  `location` veto so a re-read of the file (or a future debugging session) can recover why a
+  job did or didn't make the shortlist.
+
+### Fixed
+
+- **CV date fields now use ASCII hyphens, so the PDF text layer extracts cleanly** - the
+  stock template wrote date ranges as `[YYYY--YYYY]`, and on the repo's mandated `lualatex`
+  toolchain the `--` en-dash ligature extracts from the PDF as U+FFFD (`�`). The stock
+  template therefore failed the ATS checklist's own "no `�` replacement characters" item on
+  *every* date field, and did so silently: the rendered page looks correct, and no existing
+  check inspected the extracted text. `cv/main_example.tex` now uses `[YYYY-YYYY]` and
+  `[YYYY-Present]`, and `05-cv-templates.md` documents the failure mode and the check that
+  catches it (`framework_version` 1.3.0 to 1.4.0). The two-page layout budget is unaffected.
+
+  **Fork reconciliation note.** The five changed lines in `cv/main_example.tex` are the
+  `\cventry` date fields - three under Professional Experience, two under Education -
+  precisely the lines every fork personalizes. Rebasing forks should expect conflicts there,
+  resolve them in favour of *their own* dates, and then apply the same `--` to `-` change by
+  hand. To find remaining instances across your own CV variants:
+
+  ```
+  grep -rn '\\cventry{[^}]*--' cv/
+  ```
+
+  Verify afterwards by extracting the text layer and checking the date lines specifically:
+  `pdftotext -layout <file>.pdf - | grep '�'` - none of the hits may be a date field. (On
+  the stock template two benign hits remain either way: the decorative separators on the
+  contact and award lines, which are unrelated to dates and predate this fix.)
+
+- `tools/convert_salary_excel.py` now parses localized numeric string cells - Excel
+  exports that store numbers as text (a Danish `"108,5"`, `"1.234,5"`, or space-separated
+  thousands) previously hit `float()`'s `ValueError` and were silently dropped from
+  `salary_data.json`. The ambiguous single-comma-plus-three-digits pattern (`"1,234"`,
+  thousands in one locale and a decimal in another) is deliberately skipped rather than
+  guessed, preserving the old safe behaviour for the one case that cannot be
+  disambiguated. (#272)
+- `tools/check_upstream_updates.py` compares the template-repo slug case-insensitively -
+  GitHub serves repository paths case-insensitively, so a clone made from a lowercased
+  URL was a legitimate direct clone that nonetheless triggered #265's fork-vs-self
+  warning. (#273)
+
+### Changed
+
+- SETUP.md section 8 now shows the first-time `git remote add upstream ...` command
+  before telling you to `git fetch upstream`, which previously failed on any clone of a
+  personal fork with no explanation of the missing remote. (#274)
+
 ### Security & privacy
 
 - **The gitignore guard now covers every personal-output rule** - `security_guards.py`

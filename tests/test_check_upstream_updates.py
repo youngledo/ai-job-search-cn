@@ -21,6 +21,7 @@ FRAMEWORK_FILES = [
     ".claude/skills/job-application-assistant/06-cover-letter-templates.md",
     ".claude/skills/job-application-assistant/07-interview-prep.md",
     ".claude/skills/job-application-assistant/08-application-forms.md",
+    ".claude/skills/job-application-assistant/09-web-research.md",
     ".claude/skills/job-application-assistant/SKILL.md",
     "AGENTS.md",
 ]
@@ -98,6 +99,22 @@ class DirectCloneFallbackTests(UpstreamCheckerRepoFixture):
         self.assertNotIn("does not point to the ai-job-search template repo", result.stdout)
         self.assertIn("up to date with origin/master", result.stdout)
 
+    def test_clone_with_lowercased_template_url_falls_back_without_fork_warning(self):
+        # GitHub serves repo paths case-insensitively, so a clone from
+        # https://github.com/madslorentzen/ai-job-search is still the template.
+        subprocess.run(
+            ["git", "remote", "set-url", "origin", TEMPLATE_URL.lower()],
+            cwd=self.root,
+            check=True,
+            capture_output=True,
+        )
+
+        result = self.run_checker("--remote", "upstream")
+
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("Falling back to 'origin'", result.stdout)
+        self.assertNotIn("does not point to the ai-job-search template repo", result.stdout)
+
 
 class UpstreamRemotePresentTests(UpstreamCheckerRepoFixture):
     def setUp(self):
@@ -113,6 +130,34 @@ class UpstreamRemotePresentTests(UpstreamCheckerRepoFixture):
         self.assertNotIn("Falling back to 'origin'", result.stdout)
         self.assertNotIn("does not point to the ai-job-search template repo", result.stdout)
         self.assertIn("up to date with upstream/master", result.stdout)
+
+
+class UpstreamRefMissingFileTests(UpstreamCheckerRepoFixture):
+    """Simulates upstream renaming/deleting one framework file while the
+    fork still has its own copy: git show then fails, and the checker used
+    to swallow the error and report a clean '[OK]'."""
+
+    def setUp(self):
+        super().setUp()
+        self.add_remote("origin", FORK_URL)
+        self.add_remote("upstream", TEMPLATE_URL)
+
+        # Upstream drops AGENTS.md (rename/delete) in a new commit.
+        subprocess.run(["git", "rm", "-q", "AGENTS.md"], cwd=self.root, check=True, capture_output=True)
+        subprocess.run(["git", "commit", "-qm", "drop AGENTS.md"], cwd=self.root, check=True, capture_output=True)
+        self.materialize_remote_ref("upstream")
+
+        # The fork keeps its own copy locally, so only the upstream side
+        # lacks the file.
+        (self.root / "AGENTS.md").write_text(FRONTMATTER, encoding="utf-8")
+
+    def test_file_missing_upstream_is_reported_instead_of_silent_ok(self):
+        result = self.run_checker()
+
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("AGENTS.md", result.stdout)
+        self.assertNotIn("[OK] All framework files are up to date", result.stdout)
+        self.assertIn("[WARNING]", result.stdout)
 
 
 if __name__ == "__main__":

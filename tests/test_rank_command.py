@@ -78,6 +78,72 @@ class RankCommandSpec(unittest.TestCase):
             "schema note must say old entries lacking strengths/gaps are tolerated, never backfilled",
         )
 
+    def test_step2_schema_includes_language_gate_fields(self):
+        sections = _sections(COMMAND.read_text(encoding="utf-8"))
+        step2 = sections.get("Step 2: Batch-Fetch and Score", "")
+        self.assertIn('"language_gate"', step2, "Step 2's scoring-agent JSON must include language_gate")
+        self.assertIn('"language_note"', step2, "Step 2's scoring-agent JSON must include language_note")
+        self.assertIn(
+            '"PASS" | "FAIL" | "FLAG"',
+            step2,
+            "language_gate must use the same PASS/FAIL/FLAG verdict set as the location veto",
+        )
+        self.assertIn(
+            "distinct from",
+            step2,
+            "spec must distinguish language_gate/language_note from the pre-existing 'language' field "
+            "(which records the posting's own language, not a veto verdict) - the two are easy to conflate",
+        )
+
+    def test_step3_documents_language_veto(self):
+        sections = _sections(COMMAND.read_text(encoding="utf-8"))
+        step3 = sections.get("Step 3: Aggregate and Rank", "")
+        self.assertIn(
+            "Language veto",
+            step3,
+            "Step 3 must document a Language veto rule, mirroring the existing Location veto",
+        )
+        self.assertIn(
+            "excludes the job from the shortlist",
+            step3,
+            "a language_gate FAIL must be documented as excluding the job, same as a location FAIL",
+        )
+
+    def test_step4_persists_language_gate_and_language_note(self):
+        """Regression guard: language_gate/language_note were computed in Step 2 and used
+        to decide Step 3's veto, but never written to seen_jobs.json - live-debugged and
+        fixed once already (a real /rank run showed language_gate: null on every entry
+        despite the run reporting real vetoes). This pins the fix in the spec text the
+        same way test_step4_persists_gaps_and_strengths pins the sibling strengths/gaps
+        persistence bug, so a future edit can't silently reintroduce either loss.
+        """
+        sections = _sections(COMMAND.read_text(encoding="utf-8"))
+        step4 = sections.get("Step 4: Update State", "")
+        self.assertIn('"language_gate"', step4, "Step 4 must persist language_gate into seen_jobs.json")
+        self.assertIn('"language_note"', step4, "Step 4 must persist language_note into seen_jobs.json")
+        self.assertIn(
+            "as important to persist as the score itself",
+            step4,
+            "Step 4 must call out that the veto fields (location/language_gate/language_note) are not optional extras",
+        )
+
+    def test_step5_documents_language_flag_marker(self):
+        # Note: _sections() splits on every "\n## " line, including the "## Job
+        # Ranking - YYYY-MM-DD" line inside Step 5's own fenced example template -
+        # so the presentation rules that follow that example live under that key,
+        # not "Step 5: Present the Shortlist" itself. Matches how the existing
+        # gaps/strengths tests above only probe Step 4, never Step 5, for the same
+        # reason - documented here since it's easy to trip over when adding a new
+        # Step-5-content test.
+        sections = _sections(COMMAND.read_text(encoding="utf-8"))
+        step5_rules = sections.get("Job Ranking - YYYY-MM-DD", "")
+        self.assertIn(
+            "language_gate: FLAG",
+            step5_rules,
+            "Step 5's presentation rules must document the ⚠ marker + language_note callout "
+            "for a shortlisted FLAG job, mirroring the existing location FLAG treatment",
+        )
+
     @unittest.skipUnless(
         _HAVE_YAML,
         "PyYAML not installed (the CI Python-test job omits it; the lint job runs lint_skills.py directly)",

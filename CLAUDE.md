@@ -18,7 +18,15 @@ This repo is a job application workspace. Claude acts as a career advisor and ap
 ### Identity
 - **Name:** [YOUR_NAME]
 - **Location:** [YOUR_CITY], [YOUR_COUNTRY] ([YOUR_COMMUTE_CONSTRAINTS])
-- **Languages:** [YOUR_LANGUAGES]
+- **Languages:**
+  | Language | Level |
+  |----------|-------|
+  | [LANGUAGE] | [LEVEL] |
+  <!-- Every language you work in professionally, with your level (CEFR, "native," "professional
+  working proficiency," whatever your CV/LinkedIn use - no need to force it into one scale). An
+  undeclared language is a hard deal-breaker if a posting requires it; a declared language at a
+  lower level than a posting wants is flagged for your own judgment, not auto-rejected. See
+  04-job-evaluation.md's Language Gate. -->
 - **CV language:** [YOUR_CV_LANGUAGE] <!-- English unless your market expects otherwise; /setup asks -->
 
 - **Status:** [YOUR_EMPLOYMENT_STATUS]
@@ -74,7 +82,8 @@ This repo is a job application workspace. Claude acts as a career advisor and ap
 - [SECTOR_2]: [EXAMPLE_COMPANIES]
 
 ### Deal-breakers
-<!-- Hard constraints on job search -->
+<!-- Hard constraints on job search. Language requirements are handled separately and
+automatically from your Languages table above - don't duplicate them here. -->
 - [DEALBREAKER_1]
 - [DEALBREAKER_2]
 
