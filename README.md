@@ -60,11 +60,23 @@ Claude 帮你评估岗位、生成 BOSS 直聘打招呼话术、招聘者私信�
 
 ## 快速开始
 
+### 1. Fork and clone
+
+```bash
+gh repo fork MadsLorentzen/ai-job-search --clone
+cd ai-job-search
+```
+
+> [!IMPORTANT]
+> **A fork of this repo is always public**. GitHub does not allow private forks of public repositories, and `/setup` writes your personal data into tracked files. For a personal job search, use a **private repository** with this repo as `upstream` instead. The setup is documented in [SETUP.md section 8](SETUP.md#8-pulling-upstream-updates-into-your-fork); fork only when you intend to contribute.
+
 ### 1. 启动 Claude Code
 
 在仓库根目录运行：
 
 > 想先了解完整流程？可观看 [The Next New Thing 的实操演示](https://www.youtube.com/watch?v=HoVxjMNFYv4)（录制于 2026 年 8 月，命令可能已更新）。
+
+> 公开仓库的 fork 不能设为私有，而 `/setup` 会将个人资料写入受 Git 追踪的文件。个人求职请使用以本仓库为 `upstream` 的私有仓库；具体步骤见 [SETUP.md 第 8 节](SETUP.md#8-pulling-upstream-updates-into-your-fork)。
 
 ```bash
 claude

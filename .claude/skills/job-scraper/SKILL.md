@@ -66,7 +66,7 @@ For each **enabled** portal skill:
 
 1. Read its `SKILL.md` to find the correct `bun run …` invocation and supported flags.
 2. Translate the query terms from `search-queries.md` into that portal's flag format (e.g. `--key`, `--search-string`, `--query`, filter codes — whatever the portal's SKILL.md specifies).
-3. Scope to the last 14 days using the portal's supported recency flag (`--jobage`, `--since <YYYY-MM-DD>`, `--order PublicationDate`, etc. — as documented per portal).
+3. Scope to the last 14 days using the portal's supported recency **filter** flag (`--jobage`, `--since <YYYY-MM-DD>`, etc. — as documented per portal). A portal with **no recency flag** (jobdanmark offers none) still gets scoped: every portal's search output carries a `date` field, so filter client-side — drop results whose `date` is older than 14 days after the call returns, and never invent a flag the portal's SKILL.md does not document (the CLIs reject unknown flags). `--order PublicationDate` is a sort, and a sort is not a filter — pairing it with a `--limit` is a defensible approximation on a portal that offers nothing better (jobnet), but apply the client-side date filter on top all the same.
 4. Cap results to ~20 per call using the portal's limit flag.
 5. Use `--format json` for machine-readable output.
 
@@ -82,6 +82,8 @@ Use `WebSearch` for:
 - When bun is unavailable (Step 1a failed)
 
 Use the site-specific query strings from `search-queries.md` directly as WebSearch queries for these portals.
+
+Tag each fallback result as WebSearch-sourced, keeping the portal tag when the fallback stands in for an installed portal whose CLI failed. Step 4 persists this as the entry's `source`, and Step 5 reports which portals ran on the fallback this run.
 
 ### Step 2: Fetch & Parse
 
@@ -135,9 +137,11 @@ For each new job, do a rapid fit check (NOT the full evaluation from `04-job-eva
       "company": "...",
       "url": "...",
       "first_seen": "YYYY-MM-DD",
+      "deadline": "YYYY-MM-DD" | null,
       "fit": "high/medium/low",
       "status": "new/skipped/ranked/expired",
-      "portal": "<source portal skill, e.g. jobindex-search>"
+      "portal": "<source portal skill, e.g. jobindex-search>",
+      "source": "cli/websearch"
     }
   }
 }
@@ -145,7 +149,11 @@ For each new job, do a rapid fit check (NOT the full evaluation from `04-job-eva
 
 The `portal` field records which CLI skill produced the job (results are already tagged per portal in Step 1b - persist that tag here). Entries written before this field existed lack it; the health check (Step 4.75) attributes those by matching the URL's domain against each portal's base URL, so do not backfill.
 
-`/rank` extends this schema additively: ranked entries also carry `rank_score` (0–100 overall score), `rank_verdict` (fit band, e.g. "strong fit"), `rank_date` (ISO date of ranking), and `strengths`/`gaps` (1-3 verbatim bullets each, copied from the scoring agent's findings). The `status` field is set to `"ranked"`. Do not drop any of these fields when re-writing entries. Entries ranked before `strengths`/`gaps` existed simply lack them; readers tolerate their absence and never backfill by guessing.
+The `source` field records which mechanism produced the entry: `cli` for Step 1b portal-CLI output, `websearch` for the Step 1c fallback. This is what keeps a ghost-job report diagnosable after the run's summary is gone: a stored entry whose URL later resolves to nothing (or to a different job) reads very differently depending on whether it came from live CLI output or from a search index that can be weeks stale - and a presented job with no entry here at all points at fabrication, which Rule 1 forbids. Entries written before this field existed lack it; never backfill it - the mechanism was not recorded.
+
+`/rank` extends this schema additively: ranked entries also carry `rank_score` (0–100 overall score), `rank_verdict` (fit band, e.g. "strong fit"), `rank_date` (ISO date of ranking), the veto fields `location_verdict` and `language_gate` (both PASS/FAIL/FLAG) with `language_note` (the quoted requirement explaining a non-PASS), and `strengths`/`gaps` (1-3 verbatim bullets each, copied from the scoring agent's findings). The `status` field is set to `"ranked"`. Do not drop any of these fields when re-writing entries. Entries ranked before `strengths`/`gaps` existed simply lack them; readers tolerate their absence and never backfill by guessing. Entries ranked before the verdict rename may carry a legacy PASS/FAIL/FLAG string in `location` - read that as the verdict when `location_verdict` is absent; in fresh entries `location` is always a place, never a verdict.
+
+`deadline` is a base field rather than a `/rank` extension: Step 2's detail fetch already extracts the application deadline, so it is written when the job is first seen and refreshed by `/rank` Step 4 when a scoring agent returns a different value. `null` means the posting states no deadline; a missing key means the entry predates this field - **never infer a deadline** from either, and never backfill by guessing.
 
 2. Only present jobs NOT already in the seen list or tracker.
 
@@ -193,7 +201,11 @@ Scraper-based portal CLIs rot silently: when a portal changes its markup, the pa
 Present new jobs in a table sorted by fit (high first). When Step 1b skipped
 portals (`enabled: false`), report them with the `skipped (disabled):` line below
 so opting one out stays visible rather than silent; omit the line when nothing
-was skipped. When Step 4.75 found a portal degraded, broken, or inconclusive,
+was skipped. When any portal's results came from the Step 1c fallback this run
+(bun unavailable, or its CLI failed at runtime), report it with the
+`fallback (websearch):` line - fallback results come from a search index that
+can be stale, so the reader should know which rows carry that caveat; omit the
+line when every portal ran its CLI. When Step 4.75 found a portal degraded, broken, or inconclusive,
 add one `health:` line per suspect portal (healthy portals get no line); after
 the report, offer to set that portal's `enabled: false` so `/scrape` stops
 running it (and covers it via the Step 1c fallback) until it is fixed - only
@@ -206,6 +218,8 @@ the skill.
 Found X new positions (Y high, Z medium, W low match).
 
 skipped (disabled): <portal-name>, <portal-name>
+
+fallback (websearch): <portal-name>, <portal-name>
 
 health: <portal-name> - degraded (company null on all 12 results); parsing anchors in .agents/skills/<portal-name>/url-reference.md
 health: <portal-name> - broken (0 results for the SKILL.md test query and a broader retry); parsing anchors in .agents/skills/<portal-name>/url-reference.md
