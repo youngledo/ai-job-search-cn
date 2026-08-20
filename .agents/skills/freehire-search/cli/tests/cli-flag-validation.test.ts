@@ -25,9 +25,14 @@ describe("freehire CLI flag validation", () => {
       });
     }
 
-    test("valid integers produce no BAD_ARG", async () => {
-      const result = await runCLI(["search", "--jobage", "7", "--page", "1", "--limit", "1"]);
-      expect(parsedStderr(result.stderr).code).not.toBe("BAD_ARG");
+    test("valid integers reach the search path without BAD_ARG", async () => {
+      const result = await runCLI(
+        ["search", "--jobage", "7", "--page", "1", "--limit", "1"],
+        { FREEHIRE_API_URL: "http://127.0.0.1:0" },
+      );
+      const err = parsedStderr(result.stderr);
+      expect(err.code).toBe("SEARCH_FAILED");
+      expect(err.code).not.toBe("BAD_ARG");
     });
   });
 
