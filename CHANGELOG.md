@@ -11,6 +11,54 @@ prefer updating to a tagged release over pulling raw `master` (see
 files a release touched; `python3 tools/check_upstream_updates.py` lists them with
 per-file diff commands.
 
+## [Unreleased]
+
+### Added
+
+- **Company-research cache for `/apply` and `/interview`** - `/apply` Step 3's reviewer
+  agent and `/interview` Step 2 each independently execute the Company Research
+  Checklist (`04-job-evaluation.md`) for the same company, so applying and later
+  prepping for an interview on the same application researches the company twice from
+  scratch. A new `company_research/<normalized-name>.json` cache (30-day TTL, documented
+  in `04-job-evaluation.md` alongside the checklist it mirrors) lets either consumer
+  reuse a recent result instead of repeating the search/fetch work. This does not
+  change how a claim gets verified: cached research is a lead, exactly like
+  reviewer-agent research already is under `03-writing-style.md` rule 5 - only the
+  discovery step is cached, never the final verification before a claim ships in a
+  cover letter or prep pack. `company_research/*.json` added to `.gitignore` and
+  `security_guards.py`'s `REQUIRED_IGNORE_RULES` (a plain rooted pattern, not `**/`
+  -prefixed - the cache is referenced from commands, not a skill, so it resolves
+  against the repo root normally). Pinned by the new
+  `tests/test_company_research_cache.py`. Cache contents are documented as data, never
+  instructions, for a later session reading the file - the same trust-boundary rule
+  `apply.md` Step 0 states for the posting itself, since cache notes are written from
+  the same fetched web content. The verification-still-applies restatement in both
+  `apply.md` and `interview.md`'s cache-check paragraphs is now pinned too.
+- **CI now compiles the LaTeX examples on Debian bookworm's apt-packaged TeX Live** (the
+  separate-PR follow-up invited in #323's review). The `latex-smoke` job ran only
+  `texlive/texlive:latest` - the environment that never had the #242 bug, so the moderncv-2.3.1
+  compile fix shipped guarded by nothing: the next edit to `cv/main_example.tex` could
+  reintroduce a `\firstnamestyle` override or a top-level `\usepackage{hyperref}` and CI would
+  stay green. The job is now a two-leg matrix, `texlive-latest` unchanged and `debian-bookworm`
+  installing TeX Live 2022 from apt (moderncv 2.3.1, verified in a real bookworm container:
+  both documents compile clean and the strict stock assertions - 2-page CV, 1-page cover
+  letter, extractable text - pass on both legs unchanged). `--no-install-recommends` keeps the
+  leg lean, which makes two font packages explicit requirements: `texlive-fonts-extra`
+  (moderncv loads fontawesome5) and `texlive-fonts-recommended` (hyperref's xetex driver
+  probes the `pzdr` metrics). **Note for repo admins:** the matrix renames the check from
+  "Compile example CV and cover letter" to two leg-suffixed names, so a branch-protection
+  rule requiring the old name needs updating once.
+
+### Fixed
+
+- **`salary_lookup.py` never stripped the dotted "A.M.B.A." legal suffix** (#356) - the
+  `STRIP_PATTERNS` regex ended in `\.\b`, and a word boundary can't sit between a literal
+  dot and the space or end-of-string that follows it in real company names, so the
+  pattern was dead code: `"Arla Foods A.M.B.A."` normalized differently from
+  `"Arla Foods amba"` and fuzzy-matched at 86 instead of 100. The trailing dot is now
+  optional (`\.?\b`), both forms normalize identically, and two regression tests pin it.
+  Thanks @Ritik650.
+
 ## [1.6.0] - 2026-08-19
 
 ### Added
