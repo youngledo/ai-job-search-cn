@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Verify that a generated PDF has the expected pages and extractable text."""
+"""Verify that a generated PDF has the expected pages and extractable text.
+
+Text-layer extraction tries pypdf (BSD, optional `pip install pypdf`) first,
+then Poppler `pdftotext` if pypdf is missing, raises, or returns zero
+extractable characters. Poppler remains the fallback.
+"""
 
 import argparse
 import re
@@ -19,12 +24,15 @@ def run_tool(command):
             check=True,
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
         ).stdout
     except FileNotFoundError as exc:
         raise VerificationError(
             f"required command '{command[0]}' was not found. "
-            "Install poppler-utils (macOS: brew install poppler, "
-            "Debian/Ubuntu: apt install poppler-utils, Windows: choco install poppler)"
+            "Install pypdf (`pip install pypdf`) or poppler-utils "
+            "(macOS: brew install poppler, Debian/Ubuntu: apt install poppler-utils, "
+            "Windows: choco install poppler)"
         ) from exc
     except subprocess.CalledProcessError as exc:
         detail = (exc.stderr or "").strip() or (exc.stdout or "").strip()
@@ -43,29 +51,81 @@ def normalize_text(text):
     return " ".join(text.split())
 
 
-def verify_pdf(pdf_path, expected_pages=None, min_chars=1, required_text=()):
+def _extract_pypdf(pdf_path):
+    """Return (text, pages) or None if pypdf is unavailable, raises, or yields no text."""
+    try:
+        from pypdf import PdfReader
+    except ImportError:
+        return None
+    try:
+        reader = PdfReader(str(pdf_path))
+        pages = len(reader.pages)
+        text = "\n".join((page.extract_text() or "") for page in reader.pages)
+    except Exception:
+        return None
+    # Harden: treat empty/degraded extraction as failure so we fall back
+    if len(normalize_text(text)) == 0:
+        return None
+    return text, pages
+
+
+def _extract_pdftotext(pdf_path):
+    text = run_tool(["pdftotext", "-layout", "-enc", "UTF-8", str(pdf_path), "-"])
+    # Always call pdfinfo here so the fallback path returns a page count
+    # even when the caller did not request --pages (same Poppler package).
+    pages = parse_page_count(run_tool(["pdfinfo", str(pdf_path)]))
+    return text, pages
+
+
+def extract_text_layer(pdf_path):
+    """Extract ATS-readable text. Returns (text, pages, extractor_name)."""
+    pypdf_result = _extract_pypdf(pdf_path)
+    if pypdf_result is not None:
+        text, pages = pypdf_result
+        return text, pages, "pypdf"
+    text, pages = _extract_pdftotext(pdf_path)
+    return text, pages, "pdftotext"
+
+
+def verify_pdf(pdf_path, expected_pages=None, min_chars=1, required_text=(), dump_text=None):
     pdf_path = Path(pdf_path)
     if not pdf_path.is_file():
         raise VerificationError(f"PDF does not exist: {pdf_path}")
 
-    if expected_pages is not None:
-        actual_pages = parse_page_count(run_tool(["pdfinfo", str(pdf_path)]))
-        if actual_pages != expected_pages:
-            raise VerificationError(
-                f"expected {expected_pages} page(s), found {actual_pages}"
-            )
+    extracted_text, actual_pages, extractor = extract_text_layer(pdf_path)
 
-    extracted_text = normalize_text(
-        run_tool(["pdftotext", "-layout", str(pdf_path), "-"])
-    )
-    if len(extracted_text) < min_chars:
+    # Write dump *before* the checks so a failed verification still leaves a .txt
+    if dump_text is not None:
+        dump_path = Path(dump_text)
+        try:
+            dump_path.parent.mkdir(parents=True, exist_ok=True)
+            dump_path.write_text(
+                extracted_text if extracted_text.endswith("\n") else extracted_text + "\n",
+                encoding="utf-8",
+            )
+        except OSError as exc:
+            raise VerificationError(
+                f"could not write --dump-text to {dump_path}: {exc}"
+            ) from exc
+
+    if expected_pages is not None and actual_pages != expected_pages:
         raise VerificationError(
-            f"text layer has {len(extracted_text)} character(s); expected at least {min_chars}"
+            f"expected {expected_pages} page(s), found {actual_pages} (extractor: {extractor})"
+        )
+
+    normalized = normalize_text(extracted_text)
+    if len(normalized) < min_chars:
+        raise VerificationError(
+            f"text layer has {len(normalized)} character(s); expected at least {min_chars} "
+            f"(extractor: {extractor})"
         )
 
     for required in required_text:
-        if normalize_text(required) not in extracted_text:
-            raise VerificationError(f"text layer is missing required text: {required!r}")
+        if normalize_text(required) not in normalized:
+            raise VerificationError(
+                f"text layer is missing required text: {required!r} (extractor: {extractor})"
+            )
+    return extractor, extracted_text, actual_pages
 
 
 def build_parser():
@@ -86,17 +146,28 @@ def build_parser():
         default=[],
         help="text that must appear after whitespace normalization; repeatable",
     )
+    parser.add_argument(
+        "--dump-text",
+        type=Path,
+        help="write the extracted text layer to this path (UTF-8)",
+    )
     return parser
 
 
 def main(argv=None):
     args = build_parser().parse_args(argv)
     try:
-        verify_pdf(args.pdf, args.pages, args.min_chars, args.contains)
+        extractor, text, pages = verify_pdf(
+            args.pdf,
+            args.pages,
+            args.min_chars,
+            args.contains,
+            dump_text=args.dump_text,
+        )
     except VerificationError as exc:
         print(f"Error: {args.pdf}: {exc}", file=sys.stderr)
         return 1
-    print(f"Verified {args.pdf}")
+    print(f"Verified {args.pdf} (extractor: {extractor}, pages: {pages})")
     return 0
 
 

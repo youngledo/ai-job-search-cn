@@ -13,8 +13,29 @@ per-file diff commands.
 
 ## [Unreleased]
 
+### Fixed
+
+- **`freehire-search` fractional numeric flags no longer silently change the query** (#373) -
+  `parseIntFlag` used bare `parseInt`, so a fractional value was truncated instead of
+  rejected: `--jobage 0.5` became `0`, failed the `jobage > 0` guard, and the
+  `posted_within_days` freshness filter was silently omitted from the outbound request
+  while the CLI exited 0 - on a default-ON `/scrape` portal, exactly the
+  discarded-filter failure the CLI's own `UNKNOWN_FLAG` guard documents. Numeric flags
+  (`--jobage`/`--page`/`--limit`) now accept whole numbers >= 1 only, mirroring the
+  Danish CLIs' `z.coerce.number().int().min(1)` contract, and reject everything else
+  with the stderr-JSON `BAD_ARG` error. The sibling of #371 (`linkedin-search`), which
+  remains with its reporter. Pinned by five new cases in `cli-flag-validation.test.ts`,
+  each verified to fail on the unfixed code.
+
 ### Added
 
+- **pypdf ATS text-layer fallback** - `/apply` Step 5d and `tools/verify_pdf.py` extract the CV PDF text layer with **pypdf** first (BSD, `pip install pypdf`) so Windows machines without Poppler still get a mechanical parseability check. Poppler `pdftotext -layout -enc UTF-8` remains the fallback; if both are missing the check still degrades to a visual keyword review. No extra cache or installer. `05-cv-templates.md` `framework_version` 1.4.2 → 1.4.3.
+- **CI now tests the full documented Python range** (#370) - the Python tool tests job
+  runs a 3.10-3.14 version matrix instead of pinning 3.12, so both the documented 3.10
+  minimum and the newest Python are continuously verified. Grew out of an independent
+  cross-platform verification (Windows + Linux, Python 3.14) contributed by
+  @atiqur-rahman-pro, whose report also confirmed the suite's expected
+  PyYAML-dependent skips in a clean container. Thanks!
 - **Company-research cache for `/apply` and `/interview`** - `/apply` Step 3's reviewer
   agent and `/interview` Step 2 each independently execute the Company Research
   Checklist (`04-job-evaluation.md`) for the same company, so applying and later
@@ -51,6 +72,28 @@ per-file diff commands.
 
 ### Fixed
 
+- **`/reset profile` left candidate data in two of the skill files it claims to clear**
+  (#364) - `/setup` Step 3 populates six skill files; the profile scope cleared four.
+  `04-job-evaluation.md` was listed by name under "files NOT touched (they contain
+  framework rules, not candidate data)" while Step 3.4 writes the user's match areas,
+  career goals, energizing/draining tasks, financial situation and schedule constraints
+  into it - and CI's placeholder-integrity job already guards it under "personal data may
+  have been committed". `job-scraper/search-queries.md`, which Step 3.8 fills with their
+  job boards, role titles, domain keywords, city and commute tiers, appeared nowhere in
+  `reset.md` at all. Both are tracked and unignored, so the Step 1 preview asked the user
+  to confirm a wipe list that omitted them and Step 4 then reported a blank profile while
+  `/rank` kept scoring against the old skills and career goals and `/scrape` kept running
+  the old city and queries. Both files are now previewed and cleared, restoring their
+  `/setup` placeholders while preserving the scoring framework and the query structure;
+  `04-job-evaluation.md` is out of the preserved list, which keeps `03-writing-style.md`
+  and `06-cover-letter-templates.md` (correctly - the latter's `[YOUR_NAME]` tokens are
+  LaTeX scaffolding Step 3 never writes to). `CLAUDE.md` and `cv/main_example.tex` stay
+  outside the `profile` scope, which covers skill files only, and the preview and Step 4
+  now say so instead of implying a full wipe. `tests/test_reset_command.py` gains a
+  profile-scope guard alongside its documents-scope one, deriving the file list from
+  `/setup` Step 3's own headings so a future `/setup` target that `/reset` forgets fails
+  in CI; the third case pins that a personalized file is never labelled framework-only,
+  which a filename search alone would have missed.
 - **`salary_lookup.py` never stripped the dotted "A.M.B.A." legal suffix** (#356) - the
   `STRIP_PATTERNS` regex ended in `\.\b`, and a word boundary can't sit between a literal
   dot and the space or end-of-string that follows it in real company names, so the

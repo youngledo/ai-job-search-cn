@@ -53,6 +53,7 @@ Claude 帮你评估岗位、生成 BOSS 直聘打招呼话术、招聘者私信�
 - Python 3.10+。
 - 可选：LaTeX 发行版，例如 TeX Live、MacTeX、TinyTeX 或 MiKTeX。
 - 可选：`pdftotext`，用于通用 `/apply` 工作流的 ATS 文本层检查。
+- 可选：`pypdf`（`pip install pypdf`），用于 `/apply` 的 ATS 文本提取；没有时回退到 `pdftotext`。
 - 可选：Bun，仅当你要使用上游提供的招聘搜索 CLI 时需要。
 
 如果要编译中文 LaTeX 模板，需要安装支持中文字体的 TeX 环境。Linux 通常需要安装
@@ -346,9 +347,14 @@ ai-job-search/
 ├── .github/workflows/ci.yml           # CI: LaTeX smoke compiles, skill lint, CLI typechecks
 ├── salary_lookup.py                   # Salary benchmarking tool (BYO data)
 ├── tools/
+│   ├── check_framework_version.py     # CI check: framework_version bumped when skill files change
+│   ├── check_upstream_updates.py      # Preview which personalized files an upstream update touches
 │   ├── convert_salary_excel.py        # Convert salary Excel to JSON
 │   ├── lint_skills.py                 # CI lint for skills, commands, settings.json
+│   ├── robots_check.py                # Gate the browser-header retry against robots.txt
 │   ├── security_guards.py             # CI guards: permission allowlist, gitignore rules, manifests
+│   ├── upstream_triage.py             # Sort upstream commits into worth-reviewing vs probably-skip
+│   ├── verify_pdf.py                  # Verify a compiled PDF's page count and extractable text
 │   └── README_SALARY_TOOL.md          # Salary tool setup instructions
 ├── job_scraper/                       # Scraper state (seen jobs, results)
 ├── gmail_sync/                        # /gmail-sync state (processed message IDs, last sync date)
