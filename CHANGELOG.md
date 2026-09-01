@@ -13,8 +13,61 @@ per-file diff commands.
 
 ## [Unreleased]
 
+### Security
+
+- **`settings.json` no longer pre-approves `bun run` on arbitrary files** (#396) - the
+  template's permission allowlist granted `Bash(bun run:*)`, which auto-approved
+  `bun run <any file on disk>` in every fork. It is now one path-scoped entry per shipped
+  portal CLI, matching what each portal SKILL.md already declares. `/scrape` is unaffected
+  for all portals, including ones added by `/add-portal` - the job-scraper skill's own
+  `allowed-tools` carries the path-scoped wildcard that covers them during the workflow.
+  Running a portal CLI ad hoc outside a skill now prompts once, which is the intended
+  behavior for anything not on the reviewed list. Thanks @vkotaru.
+
 ### Fixed
 
+- **The `documents/interview/**` ignore rule no longer claims interview prep is written there**
+  (#336). `/interview` saves its pack to
+  `documents/applications/<company>_<role>/interview_prep_<stage>.md`, already ignored by
+  `documents/applications/**`; nothing has ever written to `documents/interview/`. Nothing leaked -
+  but it was the personal-data block's one dedicated line about interview material, so an auditor
+  checking the framework's most sensitive artifact had every reason to read it and stop, at the
+  only path in the block with no writer. The protection rationale now sits above
+  `documents/applications/**`, the rule that actually provides it, so the next reader finds it
+  where it lives; `documents/interview/**` stays, relabelled belt-and-braces rather than primary
+  guard (`REQUIRED_IGNORE_RULES` pins it, so removing it from `.gitignore` alone fails the guard).
+  Pinned by `tests/test_security_guards.py`, which derives the prep-pack path from
+  `/interview`'s own spec instead of hardcoding it - so moving that path fails CI rather than
+  quietly re-staling the comment.
+
+- **`/scrape` now persists each posting's publication date** (#390) - Step 2's contract guarantees a
+  `date` on every portal CLI's search output (CI enforces it in `test_scrape_contract.py`) and
+  Step 1b uses that date to scope a run to the last 14 days, but Step 4's `seen_jobs.json` schema
+  stored no posting date at all: `first_seen` is when the scraper saw an entry, not when the
+  employer posted it. The freshness window was therefore unauditable the moment a run ended, and
+  `/rank` - which reads the stored entry, not the run - had no age signal to weigh. A
+  `freehire-search` posting dated 2024-05-13 was scraped 27 months later and ranked Strong Fit at
+  position 1 of 133; the scoring note recorded that the listing "may be long stale" in prose
+  nothing reads, and an `/apply` run drafted a tailored CV and cover letter against it. The schema
+  gains `posted_date` (`null` when the portal returned no date, never inferred or backfilled).
+  Pinned by three new cases in `test_scrape_contract.py`, each verified to fail on the unfixed
+  spec. Reported and diagnosed from a real run by @sandunwijerathne.
+
+## [1.7.0] - 2026-08-29
+
+### Fixed
+
+- **Fork clones no longer point `gh issue create` at the upstream public tracker
+  undetected** (#389) - `gh repo fork --clone`, the exact command SETUP.md's fork step
+  recommends, sets the *upstream* repo as gh's default repository, and gh uses the
+  default for creating issues and PRs - so a user's own automation ("file a tracking
+  issue per application") silently published personal job-search data on the upstream
+  repo, under the user's identity, where they cannot delete it (four live instances from
+  two users in one week). SETUP.md section 2 now adds `gh repo set-default
+  <your-username>/ai-job-search` directly to the fork commands with a warning at the
+  point of decision (the #348 pattern), and a new `.github/ISSUE_TEMPLATE/` carries the
+  same heads-up the PR template already had, for the web-UI path. Blank issues stay
+  enabled - the template warns, it does not gatekeep.
 - **`freehire-search` fractional numeric flags no longer silently change the query** (#373) -
   `parseIntFlag` used bare `parseInt`, so a fractional value was truncated instead of
   rejected: `--jobage 0.5` became `0`, failed the `jobage > 0` guard, and the
@@ -29,6 +82,21 @@ per-file diff commands.
 
 ### Added
 
+- **`linkedin-search detail` reports closed postings** (#280, adopted with the original
+  author's commit preserved) - a new `isActive` field: `false` when the posting page
+  renders LinkedIn's own "No longer accepting applications" top-card banner. Detection
+  is scoped to the top card and pinned by fixture tests in both directions, including
+  the false-positive case the review required (recruiter boilerplate quoting the closed
+  phrase in a *description* must not flag a live job - on the unscoped first version it
+  did, and the new tests fail there). Only the two markers real closed pages carry are
+  matched (`closed-job__flavor` and the banner text, verified against live guest
+  pages); three speculative phrases from the first version were dropped as
+  false-positive-only risk. `/scrape` Step 2 now consumes the signal: a closed-at-source
+  job is recorded in `seen_jobs.json` as `"status": "expired"` - marked, never silently
+  dropped, per the `/rank` pattern - which is the fix for the ghost-LinkedIn-jobs class
+  in #331 (an expired LinkedIn URL redirects to a *similar live job*, so a stored hit
+  can die unnoticed between scrape and click). `isActive: true` is documented as
+  absence of the banner, not proof the posting is open.
 - **pypdf ATS text-layer fallback** - `/apply` Step 5d and `tools/verify_pdf.py` extract the CV PDF text layer with **pypdf** first (BSD, `pip install pypdf`) so Windows machines without Poppler still get a mechanical parseability check. Poppler `pdftotext -layout -enc UTF-8` remains the fallback; if both are missing the check still degrades to a visual keyword review. No extra cache or installer. `05-cv-templates.md` `framework_version` 1.4.2 → 1.4.3.
 - **CI now tests the full documented Python range** (#370) - the Python tool tests job
   runs a 3.10-3.14 version matrix instead of pinning 3.12, so both the documented 3.10
@@ -974,7 +1042,8 @@ At this baseline the framework provides:
 - **Cross-runtime support** - a root `AGENTS.md` pointer so Codex and Antigravity can
   discover the portable portal skills, with Claude Code as the reference runtime.
 
-[Unreleased]: https://github.com/MadsLorentzen/ai-job-search/compare/v1.6.0...HEAD
+[Unreleased]: https://github.com/MadsLorentzen/ai-job-search/compare/v1.7.0...HEAD
+[1.7.0]: https://github.com/MadsLorentzen/ai-job-search/compare/v1.6.0...v1.7.0
 [1.6.0]: https://github.com/MadsLorentzen/ai-job-search/compare/v1.5.0...v1.6.0
 [1.5.0]: https://github.com/MadsLorentzen/ai-job-search/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/MadsLorentzen/ai-job-search/compare/v1.3.0...v1.4.0
