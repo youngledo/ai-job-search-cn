@@ -127,15 +127,47 @@ def detect_column_type(header):
 
 def parse_sheet(ws, sheet_label=None):
     """Parse a single worksheet into a list of company entries and detected categories."""
-    # Find header row
+    # Find header row. Two passes:
+    #
+    # Strict pass: a candidate row needs a company-pattern cell AND a
+    # DIFFERENT cell matching a city/count/index pattern. Corroboration must
+    # come from a separate cell - a single free-text sentence can pack both
+    # a company-pattern word and a count-pattern word together (e.g. "...
+    # opdelt efter arbejdsgiver, antal svar 1234"), and that must not read
+    # as a header any more than a citation mentioning just one of them does.
+    # A real header row always has these as separate columns.
+    #
+    # Fallback pass: some real headers have no recognizable city/count/index
+    # column at all (e.g. "Company | Base pay 2025 | Bonus 2025" - neither
+    # data header matches a known pattern, so they're picked up later as
+    # untyped/standalone categories). Nothing can corroborate a company match
+    # there, so if the strict pass finds no row in the first 10, fall back to
+    # the original any-cell-mentions-company rule.
+    rows = list(ws.iter_rows(min_row=1, max_row=10, values_only=False))
+
+    def _cell_texts(row):
+        return [str(cell.value).strip() for cell in row if cell.value]
+
     header_row = None
-    for row_idx, row in enumerate(ws.iter_rows(min_row=1, max_row=10, values_only=False), start=1):
-        for cell in row:
-            if cell.value and header_matches(str(cell.value), COMPANY_PATTERNS):
+    for row_idx, row in enumerate(rows, start=1):
+        cell_texts = _cell_texts(row)
+        company_idxs = {i for i, t in enumerate(cell_texts) if header_matches(t, COMPANY_PATTERNS)}
+        if not company_idxs:
+            continue
+        other_idxs = {
+            i
+            for i, t in enumerate(cell_texts)
+            if header_matches(t, CITY_PATTERNS) or header_matches(t, COUNT_PATTERNS) or header_matches(t, INDEX_PATTERNS)
+        }
+        if other_idxs - company_idxs:
+            header_row = row_idx
+            break
+
+    if header_row is None:
+        for row_idx, row in enumerate(rows, start=1):
+            if any(header_matches(t, COMPANY_PATTERNS) for t in _cell_texts(row)):
                 header_row = row_idx
                 break
-        if header_row:
-            break
 
     if header_row is None:
         print(f"Warning: Could not find header row in sheet '{ws.title}'. Skipping.", file=sys.stderr)
@@ -221,6 +253,14 @@ def parse_sheet(ws, sheet_label=None):
     # Untyped columns become standalone
     for col_idx, col_header in untyped_cols:
         categories.append({"name": col_header.lower().replace(" ", "_"), "value_col": col_idx})
+
+    if not categories:
+        print(
+            f"Warning: No salary data columns detected in sheet '{ws.title}' "
+            "(only a company/city column was found) - the header row may be "
+            "wrong, or this sheet has no salary data.",
+            file=sys.stderr,
+        )
 
     # Parse data rows
     companies = []

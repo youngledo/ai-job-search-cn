@@ -13,6 +13,30 @@ per-file diff commands.
 
 ## [Unreleased]
 
+## [1.7.1] - 2026-09-06
+
+### Added
+
+- **CHANGELOG structure guard** (`tests/test_changelog_structure.py`) - every PR edits this one
+  shared file by hand near the same line, and nothing checked the result: a second `### Fixed`
+  heading landed directly under `[Unreleased]`, above `### Added`, on #425 and was fixed by hand
+  at merge time. The `[Unreleased]` section is now checked on every PR for duplicate headings,
+  headings outside the Keep a Changelog set, entries above any heading, and leftover conflict
+  markers. Released sections are history and are not inspected.
+
+- **`/rank` now consumes the `posted_date` #391 persists** (#390, the deferred second
+  half) - Step 3 gains a staleness flag: a posting whose stored `posted_date` is more
+  than 30 days old at rank time carries a visible ⚠ marker with its age spelled out
+  alongside the score ("⚠ posted 2024-05-13, 27 months ago"), the same FLAG treatment as
+  location and language - in the ranking, for the user to judge, never an exclusion (the
+  #390 posting was 27 months old *and still live*; age is a signal, not a veto, and a
+  future stored `deadline` outranks it). Costs no fetch: age is re-derived each run from
+  the stored value and never persisted. Boundary rules carried over verbatim from the
+  schema and rule 6: no `posted_date` or `null` means no flag and no guess (never
+  inferred from `first_seen`), and unparseable values are treated as absent and reported
+  once with their portal. Pinned by four new cases in `test_rank_command.py`, each
+  verified to fail against the rule-less spec.
+
 ### Security
 
 - **`settings.json` no longer pre-approves `bun run` on arbitrary files** (#396) - the
@@ -25,6 +49,141 @@ per-file diff commands.
   behavior for anything not on the reviewed list. Thanks @vkotaru.
 
 ### Fixed
+
+- **`/setup` now fills the contact blocks inside `05-cv-templates.md` and
+  `06-cover-letter-templates.md`, and `/reset` restores them** - Step 3 personalised
+  `cv/main_example.tex` but never the LaTeX contact blocks embedded in the two template files
+  `/apply` actually compiles from, so a full Path B or C run left `[YOUR_NAME]`, `[YOUR_EMAIL]`
+  and `[YOUR_PHONE]` in both, and whether they reached a document depended on the drafter
+  noticing (a real user ran `/setup` and then hand-edited both files, #420).
+  `06-cover-letter-templates.md` was not a Step 3 target at all. Step 3.5 now names the `05`
+  contact tokens, a new Step 3.6 covers the `06` contact line and signature (Path A never fills
+  it, so it runs for every path), the completion summary lists `06`, and `/reset` clears both
+  blocks instead of listing `06` as framework-only. Pinned by `tests/test_setup_command.py`; the
+  existing `/reset` coverage test is what forced the `reset.md` half.
+
+- **`/rank` no longer reads or rewrites the whole of `seen_jobs.json` on every run** (#395) -
+  Step 1 used to read the entire state file into the conversation to select candidates by
+  eye, and Step 4 emitted it back to record scores: a cost paid on every run regardless of
+  batch size, growing for the life of the workspace. `tools/rank_state.py` now owns that
+  traffic - `candidates` selects and projects only the fields a scoring agent needs, `sweep`
+  runs rule 6's expiry pass on disk, and `apply` writes results back atomically and prints
+  the rows Step 5's report is built from. Preserves Step 4's existing write-back rules
+  exactly: the `location` → `location_verdict` legacy migration, the deadline
+  null-is-not-a-correction rule, and verbatim strengths/gaps persistence. No scoring policy
+  changes - no new status value, no new persisted field.
+
+- **`jobbank-search`, `jobdanmark-search`, and `jobnet-search` detail commands now accept full URLs** -
+  the portal contract specifies `detail <id|url>`. Passing a full posting URL (with or without
+  trailing slashes, slug segments, or query parameters) previously caused `jobbank-search` and
+  `jobdanmark-search` to construct invalid double-URL strings, and `jobnet-search` to interpolate the
+  full URL into the API endpoint path. All three detail handlers now extract and normalize the
+  underlying ID or slug via dedicated helper functions, and exit 1 with code `BAD_ID` on unparseable
+  inputs, matching `linkedin-search` and `freehire-search`. Pinned by 24 unit tests across the three
+  CLIs' `detail-url-normalization.test.ts`.
+
+- **`/rank` now bounds each scoring batch** (#395) - a bare run scores at most 10
+  eligible jobs instead of attempting the entire backlog. `--limit <N>` controls
+  scoring independently of `--top`, and the report makes deferred work visible so
+  re-running `/rank` can continue it.
+
+- **The portal CLIs' unknown-flag guard no longer lets a single-dash flag through** (#426) -
+  the guard in the four bunli-based CLIs (`jobnet`, `jobbank`, `jobindex`, `jobdanmark`) inspected
+  only tokens starting with `--`, so an undefined *short* flag bypassed it entirely: bunli
+  discarded it, the search ran unfiltered, and the CLI exited 0 with no error. Live against
+  jobnet, `search -q "sygeplejerske"` returned all 18,179 ads as a successful search against 667
+  for the real `--search-string` query - the same shape as review finding F13 (jobdanmark, 13,862
+  results) that motivated the guard in the first place, reached by the likelier route: `-q` is the
+  documented short for the keyword search in `linkedin-search`, `freehire-search` and
+  `jobindex-search`, so a cross-portal habit produces it. Both dash forms are now checked, with
+  declared shorts (`jobindex`'s `-q`) and bunli's built-in `-h`/`-v` still valid. A negative number
+  is rejected too rather than skipped: bunli does not consume a `-`-prefixed token as the previous
+  flag's value, so `--radius -5` silently fell back to the default radius instead of failing its
+  own `min(1)` schema - erroring on it is the trade `linkedin-search` already makes, and a value
+  that must begin with a dash uses the `--flag=value` form. `linkedin-search` and
+  `freehire-search` were unaffected; they normalize `-x` to a long name before checking it. Pinned
+  by thirteen new cases across the four CLIs' `cli-flag-validation.test.ts`, network-free because
+  the guard runs before dispatch: eight bug-pinning cases (the short flag and the negative number,
+  per CLI), each verified to fail on the unfixed guard, plus five regression guards that pass on
+  both and exist to keep the fix from over-rejecting - `-h` in each CLI, and `jobindex`'s declared
+  `-q`.
+
+- **`jobdanmark-search` autocomplete no longer dies over one suggestion without text**
+  (#421, closing out the #416/#418 audit - every other deref site in the six CLIs
+  checked and confirmed guarded) - the filter derefed `item.text.toLowerCase()` from a
+  cast API response on the same line that already guards `g.items ?? []`, so one item
+  with a null or missing `text` threw `TypeError` and the whole command exited 1 as
+  `API_ERROR`. The filter now lives in an exported `filterAutocompleteGroups` (the
+  jobnet testability pattern), `text` is typed nullable so the compiler enforces the
+  guard, and an item without usable text is skipped - it can never match the required
+  non-empty query, so downstream output never sees one. Pinned by three cases in the
+  new `autocomplete-filtering.test.ts`; the null-text case fails against the verbatim
+  unguarded extraction with the exact production TypeError.
+
+- **`jobnet-search` no longer dies over one ad with a null publication date** (#418, the
+  sibling of #416 from the same audit) - `date: job.publicationDate.slice(0, 10)` trusted
+  a TypeScript interface claim (`publicationDate: string`) that nothing validates at
+  runtime: `apiFetch` casts the JSON body, so one `null` threw `TypeError` inside the
+  `jobAds` map and the whole search of a default-ON portal exited 1 as `API_ERROR` - while
+  the neighboring `applicationDeadline` field was already null-guarded with a `1900-01-01`
+  sentinel check. The field is now typed nullable (so the compiler enforces the guard) and
+  degrades per-item to `date: null`, the shape the `seen_jobs.json` contract documents.
+  Pinned by a new case in `search-normalization.test.ts`, verified to fail on the unfixed
+  code with the exact production TypeError.
+
+- **Placeholder-integrity tests in `python-tests` now skip on forks** (#405) - the dedicated
+  `placeholder-integrity` job already gates on the upstream repo name, but `python-tests` ran
+  `unittest discover` with no such guard, so forks that personalized files via `/setup` failed
+  three sentinel checks permanently. Both test classes now use `@unittest.skipIf` on
+  `GITHUB_REPOSITORY` (defaulting to upstream when unset so local pristine-template runs still
+  execute).
+- **`convert_salary_excel.py` no longer mistakes a title/citation row for the header row**
+  (#414) - header-row detection accepted the first row in the first 10 where *any* cell merely
+  contained a company-pattern word, with no check that the row actually looked like a header. A
+  source-citation line above the real header table - standard in real Danish union/statistics
+  exports, e.g. "Kilde: ... opdelt efter arbejdsgiver ..." - tripped it purely because
+  "arbejdsgiver" (employer) appeared in prose. The real header row then got parsed as a data row
+  (its "Firma" cell became a bogus company entry), and every genuine company lost all its salary
+  data, silently: exit 0, "Done! Wrote N company entries," with `categories: {}` on every one. A
+  candidate row is now accepted only when a *different* cell in the same row also matches a
+  city/count/index pattern - same-cell corroboration doesn't count, since a citation sentence can
+  pack a count-pattern word into the same sentence as the company-pattern one (e.g. "...opdelt
+  efter arbejdsgiver, antal svar 1234"). Sheets whose only real header has purely untyped salary
+  columns (e.g. "Base pay 2025" / "Bonus 2025", neither of which matches a known city/count/index
+  pattern) have nothing to corroborate against in any row, so detection falls back to the original
+  any-cell-mentions-company rule when the strict pass finds nothing in the first 10 rows. As a
+  backstop independent of either pass, a sheet that ends up with zero detected salary columns now
+  prints a warning instead of reporting success silently. Pinned by four cases in
+  `tests/test_convert_salary_excel.py`: the original citation-row and zero-columns cases fail
+  against the pre-fix script; the same-cell-corroboration and untyped-column-fallback cases each
+  fail against the single-pass version of this fix that came before the fallback was added.
+
+- **`jobbank-search` no longer dies over one malformed feed date** (#416) - `new Date()`
+  on a present-but-unparseable `pubDate` yields an Invalid Date whose `toISOString()`
+  throws `RangeError`, and `normalizeSearchItem` runs inside an unguarded `items.map()`,
+  so a single bad RSS item killed the entire search with `{"error": "Invalid Date",
+  "code": "API_ERROR"}` and exit 1 - a whole default-ON portal lost to one item, with
+  the error pointing at the API. The un-CDATA'd fallback capture in `parseRssItems` can
+  deliver exactly such a value. An unparseable `pubDate` now degrades to the same shape
+  as an absent one (`posted` empty, `date: null`, per the `seen_jobs.json` contract that
+  #391 put this field on), and every other item survives. Pinned by three new cases in
+  `search-normalization.test.ts`, each verified to fail on the unfixed code.
+
+- **`linkedin-search` rejects fractional numeric flags instead of silently changing
+  the query** (#371) - bare `parseInt` truncated values before validation, so
+  `--jobage 0.5` became `0` and silently omitted LinkedIn's `f_TPR` freshness filter
+  while the CLI reported no argument error. `--jobage`, `--jobage-minutes`, `--page`,
+  and `--limit` now accept whole numbers >= 1 only and reject fractions and zero with
+  the stderr-JSON `BAD_ARG` contract, matching the other portal CLIs. Pinned by eight
+  cases verified to fail on the unfixed CLI. Reported by @Meet6338-X.
+
+- **`linkedin-search detail` accepts LinkedIn job URLs with trailing slashes** (#411) -
+  passing a job URL with a trailing slash (e.g., `https://www.linkedin.com/jobs/view/<id>/`
+  or a slugged variant with or without query strings) failed validation and exited 1 with
+  `BAD_ID` before any network request because the regex delimiter strictly expected `?`
+  or end-of-string immediately after the numeric ID. The boundary check now matches
+  `[\/?]`, correctly extracting IDs from browser-copied URLs, regional subdomains, and
+  links with tracking parameters. Pinned by eleven new cases in `parsing.test.ts`.
 
 - **The `documents/interview/**` ignore rule no longer claims interview prep is written there**
   (#336). `/interview` saves its pack to
@@ -52,6 +211,19 @@ per-file diff commands.
   gains `posted_date` (`null` when the portal returned no date, never inferred or backfilled).
   Pinned by three new cases in `test_scrape_contract.py`, each verified to fail on the unfixed
   spec. Reported and diagnosed from a real run by @sandunwijerathne.
+
+- **`salary_lookup.py` no longer crashes on a `null` `metadata` or `categories`** - `--validate`
+  treats an explicit `"metadata": null` / `"categories": null` the same as an omitted key (the
+  shape checks are "...must be an object *when provided*" and skip `None`), but the renderer read
+  both through `dict.get(key, {})`, which only substitutes the default for an *absent* key - a
+  present-but-null value passed straight through. `format_entry` then hit `None.get("index_label",
+  ...)` (`AttributeError`) or, via the numeric-field fallback, `None[key] = value` (`TypeError`),
+  so a hand-maintained `salary_data.json` using `null` for "no value here" died with an uncaught
+  traceback right after printing `Found 1 match(es)`. `format_entry` now coerces both to `{}` up
+  front, so `null`, absent, and `{}` behave identically. Pinned by four cases in
+  `test_salary_lookup.py` - two unit calls into `format_entry` and two end-to-end (`main()
+  --validate` blesses the file, then the lookup path renders it), one per null shape, all verified
+  to fail on the unfixed renderer.
 
 ## [1.7.0] - 2026-08-29
 
@@ -1042,7 +1214,8 @@ At this baseline the framework provides:
 - **Cross-runtime support** - a root `AGENTS.md` pointer so Codex and Antigravity can
   discover the portable portal skills, with Claude Code as the reference runtime.
 
-[Unreleased]: https://github.com/MadsLorentzen/ai-job-search/compare/v1.7.0...HEAD
+[Unreleased]: https://github.com/MadsLorentzen/ai-job-search/compare/v1.7.1...HEAD
+[1.7.1]: https://github.com/MadsLorentzen/ai-job-search/compare/v1.7.0...v1.7.1
 [1.7.0]: https://github.com/MadsLorentzen/ai-job-search/compare/v1.6.0...v1.7.0
 [1.6.0]: https://github.com/MadsLorentzen/ai-job-search/compare/v1.5.0...v1.6.0
 [1.5.0]: https://github.com/MadsLorentzen/ai-job-search/compare/v1.4.0...v1.5.0
