@@ -136,5 +136,21 @@ class SeenJobsPostingDateTests(unittest.TestCase):
         )
 
 
+class SeenJobsDedupContinuityTests(unittest.TestCase):
+    """The new key rule must not replay jobs stored under legacy keys."""
+
+    def test_existing_urls_are_seen_regardless_of_key(self):
+        text = SCRAPER_SKILL.read_text(encoding="utf-8")
+        self.assertRegex(
+            text,
+            r"URL matches any existing `seen_jobs\.json` entry, regardless of\s+that entry's key",
+            "legacy seen_jobs entries must be matched by URL during the key-rule transition",
+        )
+
+    def test_step4_presentation_mentions_url_deduplication(self):
+        text = SCRAPER_SKILL.read_text(encoding="utf-8")
+        self.assertRegex(text, r"matched by URL or\s+company\+title")
+
+
 if __name__ == "__main__":
     unittest.main()

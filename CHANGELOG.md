@@ -13,6 +13,82 @@ per-file diff commands.
 
 ## [Unreleased]
 
+### Added
+
+- **`/expand` project and portfolio expansion** (`.claude/commands/expand.md`,
+  `tests/test_expand_command.py`) - expands candidate discovery
+  to technical projects from public GitHub repositories, extracting structured summaries
+  (problem domain, tech stack, key technical challenges, and verifiable outcomes) to
+  populate the `## Independent Projects` section of `01-candidate-profile.md`.
+
+- **Stale sweep branch in `/outcome`** (`.claude/commands/outcome.md`,
+  `tests/test_outcome_stale.py`) - introduces `/outcome stale [N]` (and `/outcome sweep [N]`)
+  to batch-resolve open applications quiet for 60+ (or N) days. Displays a numbered summary
+  of qualifying applications, requires explicit user confirmation (`all`, `select`, or `skip`),
+  resolves confirmed rows to `no_response`, logs dated entries to `notes`, updates archive
+  `outcome.md` files, and hands off to calibration when 3+ applications are resolved.
+
+- **Mechanical layout verification for compiled PDFs** - `tools/verify_layout.py` measures
+  what `/apply` Step 5b previously only eyeballed: per-page text extent, bottom whitespace,
+  the largest internal vertical gap, footer collisions, and entry headers or section
+  headings stranded at a page break. It exists for a failure that survives every existing
+  check - a moderncv `\cventry` is an unbreakable `tabular`, so an entry that does not fit
+  jumps to the next page and leaves a hole behind (observed at 273pt, roughly 19 blank
+  lines) while the document still compiles, still reports the correct page count, and still
+  passes `tools/verify_pdf.py`. Geometry comes from Poppler `pdftotext -bbox`; Poppler is
+  optional repo-wide (since #369 `verify_pdf.py` prefers pypdf), and word bounding boxes
+  have no pypdf equivalent, so this is the one step that still wants it. A missing Poppler
+  - or the xpdf-based `pdftotext` Git for Windows puts ahead of it in PATH, which rejects
+  `-bbox` - degrades to a `skipped:` exit 2 rather than reporting a phantom layout failure.
+  Page count is deliberately left to `verify_pdf.py --pages` so that one rule keeps one
+  implementation. Thresholds are calibrated for the stock moderncv and `cover.cls`
+  geometry. Tests use synthetic page geometry, so they need neither Poppler nor a
+  LaTeX toolchain.
+
+### Fixed
+
+- **`jobnet-search detail` no longer reports an externally hosted ad as not found** (#432) -
+  Jobnet's `/FindJob/JobAdDetails/<id>` returns 404 for ads with `isExternal: true`, so `detail`
+  on an ad `search` had just listed exited 1 with `NOT_FOUND`, and `/scrape` read the posting as
+  gone rather than hosted elsewhere (2 of 3 ads in a fresh sample). On that 404 the command now
+  falls back to the search endpoint, which does carry the ad's description and the external
+  application URL, and returns the record marked `isExternal: true` with a stderr note; fields the
+  search payload does not carry (`views`, `approvalStatus`, the boolean flags) are `null`, never
+  guessed. Verified live on two external ads.
+
+- **`09-web-research.md`'s curl snippets no longer write into the repo when `$SCRATCHPAD`
+  is unset** - both runnable blocks in the 403-escalation path start with `cd "$SCRATCHPAD"`,
+  and nothing in the repository ever sets that variable (`git grep 'SCRATCHPAD='` returns
+  nothing). Unset, it expands to `cd ""`, which succeeds and leaves the shell where it
+  started, so the `&&` chain proceeds and `curl -o page.html` writes to the working
+  directory - in practice the checkout, which is exactly what the paragraph directly beneath
+  the curl block forbids ("Write to the session scratchpad directory, never into the repo").
+  The file's instruction and its own snippet disagreed, and the snippet won silently.
+  Both expansions are now guarded with `${SCRATCHPAD:?...}`, turning a silent repo write into
+  an immediate failure whose message names where the value comes from. Behaviour is unchanged
+  wherever the variable is set. The same undefined reference in `.claude/commands/rank.md`
+  was removed by #425 as a side effect of rewriting Step 2/4; this is the remaining instance.
+
+- **`seen_jobs.json` keys are now a pure function of the posting** - `/scrape` Step 4 described
+  the key as prose (`"<url_or_company_title_key>"`) and nothing said how to derive it, so each
+  run slugified in its own way. Two failures followed, both observed in a live state file. Keys
+  carried characters that break the path they later become: `/apply` and `/outcome` derive an
+  archive folder from the same company+role pair, which is why `documents/README.md` has a
+  subfolder rule, and keys like `deloitte_junior-cybersecurity-analyst-(ot/iot)` and
+  `neverhack-estonia_penetration-tester-/-red-teamer` violate it. And the same posting was
+  stored twice when two runs truncated one title at different points
+  (`deloitte_cyber-intelligence-center-security-analy` and
+  `...-security-analyst-at` are one job, one URL, two entries) - which defeats the dedup the
+  file exists for. `tools/job_key.py` now owns the derivation: the slug is normalised, and
+  truncation is length-capped *and* disambiguated by a hash of the full slug, so a long title
+  always produces the same key and two long titles sharing a prefix cannot collide. Step 4
+  calls the helper instead of describing it. `--audit` reports non-conforming entries in an
+  existing state file and deliberately never rewrites them: stored keys are matched against
+  `job_search_tracker.csv` by company+role elsewhere, so a silent rewrite would break the link
+  between a stored job and its application record.
+  Existing state files need no migration: Step 2's candidate filter matches a posting to a stored
+  entry by URL regardless of that entry's key, so a workspace whose entries predate the helper does
+  not see its still-live postings re-presented as new.
 ## [1.7.1] - 2026-09-06
 
 ### Added

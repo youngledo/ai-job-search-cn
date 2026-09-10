@@ -1,5 +1,5 @@
 ---
-framework_version: 1.1.0
+framework_version: 1.1.1
 ---
 
 # Web Research and Fetching
@@ -48,7 +48,7 @@ Two details worth knowing, both covered by `tests/test_robots_check.py`:
 ### The retry: curl with browser headers
 
 ```bash
-cd "$SCRATCHPAD" && curl -sSL --max-time 45 -o page.html -w "HTTP %{http_code} size=%{size_download}\n" \
+cd "${SCRATCHPAD:?set this to the session scratchpad directory from your system prompt}" && curl -sSL --max-time 45 -o page.html -w "HTTP %{http_code} size=%{size_download}\n" \
  -H 'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36' \
  -H 'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8' \
  -H 'Accept-Language: en-GB,en;q=0.9' \
@@ -65,7 +65,7 @@ Write to the session scratchpad directory, never into the repo. `--compressed` i
 `WebFetch` converts to markdown for you; curl does not. Strip the tags:
 
 ```bash
-cd "$SCRATCHPAD" && python3 -c "
+cd "${SCRATCHPAD:?set this to the session scratchpad directory from your system prompt}" && python3 -c "
 import re, html
 h = open('page.html', encoding='utf-8', errors='replace').read()
 h = re.sub(r'(?is)<(script|style|noscript|svg)[^>]*>.*?</\1>', ' ', h)
