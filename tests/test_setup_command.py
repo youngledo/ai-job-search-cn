@@ -9,8 +9,11 @@ were not, so a full Path B/C run left `[YOUR_NAME]`, `[YOUR_EMAIL]` and
 on the drafter noticing. A real user (#420) ran `/setup` and then hand-edited both
 files to close the gap.
 """
+import os
 import unittest
 from pathlib import Path
+
+UPSTREAM = "MadsLorentzen/ai-job-search"
 
 REPO = Path(__file__).resolve().parent.parent
 COMMAND = REPO / ".claude" / "commands" / "setup.md"
@@ -67,6 +70,10 @@ class SetupStep3ContactBlocks(unittest.TestCase):
         self.assertIn("06-cover-letter-templates.md", summary)
 
 
+@unittest.skipIf(
+    os.environ.get("GITHUB_REPOSITORY", UPSTREAM) != UPSTREAM,
+    "template-placeholder guard targets the pristine upstream template; forks personalize 05-cv-templates.md and 06-cover-letter-templates.md via /setup",
+)
 class TemplatesStillCarryThePlaceholders(unittest.TestCase):
     """The instructions above target real tokens; if a template renames them,
     the instruction and this test must move together."""
@@ -81,6 +88,29 @@ class TemplatesStillCarryThePlaceholders(unittest.TestCase):
         for token in ("[YOUR_NAME]", "[YOUR_EMAIL]", "[YOUR_PHONE]", "[YOUR_LINKEDIN_URL]"):
             self.assertIn(token, text)
         self.assertIn("\\signature{[YOUR_NAME]}", text)
+
+
+class SetupPathAProjectsIngestion(unittest.TestCase):
+    """Guards for /setup Path A document ingestion of documents/projects/."""
+
+    def setUp(self):
+        self.text = COMMAND.read_text(encoding="utf-8")
+        self.sections = _sections(self.text)
+
+    def test_step0_scan_includes_projects(self):
+        step0 = self.sections["Step 0: Welcome & Choose Path"]
+        self.assertIn("projects/", step0)
+
+    def test_step_a1_inventory_includes_projects(self):
+        self.assertIn("**projects/**:", self.text)
+
+    def test_step_a3_parsing_includes_projects_spec(self):
+        self.assertIn("`projects/` documents:", self.text)
+        self.assertIn("measurable outcomes", self.text)
+
+    def test_step_a5_and_a6_map_to_independent_projects(self):
+        self.assertIn("## Independent Projects", self.text)
+        self.assertIn("New independent project:", self.text)
 
 
 if __name__ == "__main__":

@@ -49,7 +49,7 @@ Claude 帮你评估岗位、生成 BOSS 直聘打招呼话术、招聘者私信�
 
 ## 前置要求
 
-- [Claude Code](https://claude.com/claude-code) CLI。
+- [Claude Code](https://claude.com/claude-code) CLI。Claude Code 没有免费档：需要 Claude Pro/Max/Team 订阅，或 Anthropic API credits（按 token 计费，偶尔使用通常更便宜）。如果使用 Codex、Antigravity、Gemini CLI 等其他代理工具，请先看 [`AGENTS.md`](AGENTS.md)；门户搜索技能可直接使用，完整工作流适配见 [社区 fork 讨论](https://github.com/MadsLorentzen/ai-job-search/discussions/78)。
 - Python 3.10+。
 - 可选：LaTeX 发行版，例如 TeX Live、MacTeX、TinyTeX 或 MiKTeX。
 - 可选：`pdftotext`，用于通用 `/apply` 工作流的 ATS 文本层检查。

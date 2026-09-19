@@ -15,6 +15,21 @@ per-file diff commands.
 
 ### Added
 
+- **`documents/projects/` portfolio ingestion in `/setup` (Path A)** (`documents/README.md`,
+  `.claude/commands/setup.md`, `.claude/commands/reset.md`, `tests/test_setup_command.py`) -
+  onboards project writeups, case studies, and documentation (`.md`, `.txt`, `.pdf`)
+  from `documents/projects/`, extracting structured summaries (problem domain, tech stack,
+  technical challenges, and measurable outcomes) to populate `## Independent Projects`
+  in `01-candidate-profile.md`.
+
+- **Source host verification in `/apply` Step 1** (#431, `.claude/commands/apply.md`,
+  `tests/test_apply_host_check.py`) - before proceeding to draft CV and cover letters,
+  Step 1 verifies the posting URL's provenance against installed portal boards and the
+  six standard ATS apex domains (`greenhouse.io`, `lever.co`, `myworkdayjobs.com`/`workday.com`,
+  `ashbyhq.com`, `smartrecruiters.com`, `workable.com`). Look-alike prefix/suffix spoofing
+  fails closed, and unrecognized hosts are plainly flagged as unverified in the evaluation
+  output (`⚠ Unverified source host: <hostname>`) before drafting tokens are spent.
+
 - **`/expand` project and portfolio expansion** (`.claude/commands/expand.md`,
   `tests/test_expand_command.py`) - expands candidate discovery
   to technical projects from public GitHub repositories, extracting structured summaries
@@ -46,6 +61,128 @@ per-file diff commands.
   LaTeX toolchain.
 
 ### Fixed
+
+- **`/apply` Step 5b now actually runs the page-count check it claimed Step 5d ran**
+  (`.claude/commands/apply.md`, `tests/test_apply_page_count.py`) - the 5b prose said
+  "Page count is not checked here - that is `verify_pdf.py --pages`'s job, and Step 5d already
+  runs it", and `verify_layout.py`'s docstring declines to measure page count for the same
+  reason. Step 5d's only `verify_pdf.py` call is `--dump-text`, and no step in the workflow
+  passed `--pages` at all (only the upstream-only CI assertion on the stock examples does),
+  so the hard 2-page CV and 1-page cover letter limits were enforced by nothing but the
+  visual PDF read - the "measure first, then look" failure 5b was written to stop. 5b now
+  runs `verify_pdf.py --pages 2` on the CV and `--pages 1` on the cover letter ahead of
+  `verify_layout.py`, names the `ACTIVE-TEMPLATE` page limit as the substitute for a custom
+  template, and the deferral sentence points at those lines. Four spec tests pin the
+  invocations, their counts, their order relative to the layout measurement, and that no
+  prose defers the check to a step that does not run it; all four fail on master.
+
+- **`salary_lookup.py` prints the privacy footnote only when a row actually carries `N/A*`**
+  - the `* N/A = Too few employees to publish (privacy)` line was appended under every
+  category table, including one where every row has an index, so the output asserted a
+  suppression that never happened (the residual noted on #470). The footnote now follows a
+  flag set by the `N/A*` branch; a table with a suppressed row renders exactly as before.
+  Two `FormatEntryTests` cases pin both directions; the "omitted" one fails on master.
+
+- **`convert_salary_excel.py` pairs a bare `Count`/`Index` column pair instead of
+  splitting it, so `salary_lookup.py` no longer labels a published headcount as
+  privacy-suppressed** - the pairing loop required a non-empty derived category name on
+  both sides, but a header with no category word (`Count` + `Index`, Danish `Antal` +
+  `Lønindeks`) strips to an empty name, so the simplest layout the README advertises
+  ("auto-pairs count/index columns") came out as two unrelated standalone categories:
+  `{"count": {"count": 500}, "index": {"index": 108.5}}`. `salary_lookup` then rendered
+  a `Count  500  N/A*` row above an `Index  -  108.5` row, and the footnote read the
+  `N/A*` as "too few employees to publish (privacy)" - a false statement about a company
+  whose headcount is in the file, shown during `/apply`'s salary step. Demonstrated
+  through the documented Excel -> JSON -> lookup path with `openpyxl`; adding any suffix
+  (`Antal alle`) made pairing work, which is why the shipped tests, all suffixed, never
+  saw it. Bare pairs now pair under the README's top-level category name
+  (`all_employees`); a bare `Antal` with no bare index column still stays a standalone
+  count, and named pairs alongside are untouched. Four new cases in
+  `test_convert_salary_excel.py`, including one that renders the converter's output
+  through `salary_lookup.format_entry`; all four fail on the old pairing rule.
+
+- **`tools/verify_layout.py`'s `skipped:` message named only one cause of a broken
+  extractor when there are two** (#451) - it blamed the xpdf-based `pdftotext` Git for
+  Windows puts ahead of Poppler in PATH (no `-bbox` flag, exits 99), but a real Poppler
+  can abort `-bbox`/`-bbox-layout`/`-htmlmeta` too: Poppler 26.0x before 26.05 crashes on
+  any PDF whose Info dictionary carries an empty string in any field, and `hyperref`
+  writes exactly that for every field it does not set. A `lualatex`/`pdflatex` document
+  built with `hyperref` and no `\hypersetup{pdftitle=...}` - an ordinary `/add-template`
+  CV template, not a malformed one - hits this with a working Poppler installed, and the
+  old message sent the reader to check their PATH when nothing was wrong with it. The
+  message now names both causes; behavior is unchanged, degrading to `skipped:` exit 2
+  either way, since a broken extractor is still not a broken document.
+
+- **The template-placeholder guard in `test_setup_command.py` now skips on forks** (#463) -
+  `TemplatesStillCarryThePlaceholders` asserts that `05-cv-templates.md` and
+  `06-cover-letter-templates.md` still contain `[FIRST_NAME]`, `[LAST_NAME]`, `[YOUR_EMAIL]`,
+  `[YOUR_PHONE]`, `[YOUR_NAME]`, and `[YOUR_LINKEDIN_URL]`. Running `/setup` - the documented
+  path, and what Step 3.5/3.6 of that command exist to do - replaces exactly those tokens, so on
+  a personalized fork `python3 -m unittest discover -s tests` fails both checks permanently and
+  marks every push red. The class now uses the same `@unittest.skipIf` on `GITHUB_REPOSITORY`
+  (defaulting to upstream when unset, so local pristine-template runs still execute the guards)
+  that `test_placeholder_integrity.py` received in #407. The guard landed three days after that
+  fix and did not pick up the pattern; the `placeholder-integrity` CI job is upstream-gated and
+  does not cover the `05`/`06` tokens, so `python-tests` was their only check.
+- **`verify_pdf.py --contains` now sees through LaTeX's typographic substitutions and
+  the pdflatex text layer keeps accents precomposed** (Discussions #385, #384) - the
+  comparison folded whitespace only, but LaTeX ligatures `'` into U+2019 and `--` into
+  U+2013, so on the stock CV compiled with the documented `lualatex` command
+  `--contains "Master's degree"` and `--contains "2016-2024"` both reported the keyword
+  missing from a document that plainly contains it (measured through both extractors;
+  `Six Sigma` and `Statistics` on the same page passed). The documented remedy for a
+  missing keyword is to add it, so the false negative nudged toward the one thing the ATS
+  section forbids. `normalize_text()` now folds both sides - NFC, then curly
+  apostrophes/quotes to ASCII, en/em dashes to `-`, no-break space to space - at
+  comparison time only; `--dump-text` still writes the raw layer, because that is what an
+  ATS parses and the date-range rule in `05-cv-templates.md` needs the raw en-dash visible
+  there. Separately, pdflatex without T1 font encoding stores accents decomposed
+  (`e` + U+0300; pypdf reads it as a stray spacing accent), which NFC cannot fully
+  repair - moderncv 2.5 loads T1 itself under pdflatex but the apt-packaged 2.3.1 does
+  not, so `cv/main_example.tex` and the guide's preamble gain
+  `\ifpdftex\usepackage[T1]{fontenc}\fi`, a no-op on the lualatex path. Pinned by
+  ten new `test_verify_pdf.py` cases (the fold-through ones fail on the whitespace-only
+  code) and a `test_latex_guidance.py` guard that the line exists and stays
+  pdflatex-only. Reported and diagnosed by 9scorp4. Fork users: your
+  personalized `cv/main_example.tex` gains the one guarded preamble line on rebase (a clean
+  3-way merge unless you edited the preamble); tailored CVs compiled with lualatex need nothing.
+- **`jobdanmark-search detail` now backs off on 429/5xx like every other portal's detail
+  command** - the handler called `fetch()` directly instead of going through the CLI's own
+  request wrappers, so it carried none of the three things `apiFetch`/`apiPost` guarantee:
+  no 429/5xx retry loop (a rate-limited detail page wrote `API_ERROR` and exited after one
+  attempt, where jobnet, jobbank, jobindex, linkedin, and freehire all retry up to six
+  times), a hand-inlined User-Agent string that would drift from the exported `USER_AGENT`,
+  and a timeout the wrappers' tests never saw. `/scrape` calls `detail` once per
+  shortlisted posting, so a burst that tripped jobdanmark's rate limiter dropped those
+  postings outright - no description, no deadline - while the same burst on any other
+  portal rode it out. Demonstrated by driving the real command handler with a stubbed 429:
+  1 fetch attempt and exit 1 before, 7 attempts after (the contract's initial try plus six
+  retries). Fixed by adding `htmlFetch` to `helpers.ts` with the same backoff schedule,
+  timeout, and shared User-Agent as the JSON wrappers (404 returns `null` so `detail` keeps
+  its `NOT_FOUND` contract) and routing `detail` through it. Pinned in the existing
+  `retry-backoff`, `user-agent`, and `request-timeout` suites, which now cover all three
+  wrappers, plus a new `detail-backoff.test.ts` that exercises the handler path itself -
+  its retry cases fail against the bare `fetch()`.
+
+- **Free-form tracker notes no longer break the CSV row** (#454) (`.claude/commands/gmail-sync.md`,
+  `.claude/commands/outcome.md`, `tests/test_tracker_notes_csv_safe.py`) - two writers put
+  free-form text into the `notes` column of `job_search_tracker.csv`: `/gmail-sync` Step 7a
+  copied the raw subject of a received email, and `/outcome` Step 4 appended "a short dated
+  note" with no constraint on its content. No writer in the framework emits a quoted tracker
+  field, so an unescaped comma splits the row for a naive split and for `csv.DictReader` alike -
+  the latter being what the repo's only machine reader of the tracker uses
+  (`tools/rank_state.py`). `notes` is column 10 of 14, so a subject as ordinary as
+  `Re: Your application, Data Scientist`, or a note as natural as `rejected, no feedback given`,
+  shifted `cv_file`, `cover_letter_file` and `source` a column left. A line break is worse: it
+  ends the row and starts a second one. Nothing validated the row afterwards, and the
+  `/gmail-sync` half was written unattended, so the corruption was silent. Both append
+  instructions now carry the rule themselves - `/gmail-sync` deletes commas, double quotes and
+  line breaks from the subject, `/outcome` writes its note without them - rather than a general
+  note a writer can miss. Nothing is lost on the `/gmail-sync` side: Step 7a item 2 still
+  records the subject verbatim in the archive's `outcome.md`, which is Markdown and carries no
+  such constraint. The fixed-format writers (`followed up YYYY-MM-DD`,
+  `stale resolved no_response (YYYY-MM-DD)`, `redrafted`) could never contain these characters
+  and are unchanged.
 
 - **`jobindex-search detail` no longer fetches arbitrary URLs or invents posting-shaped
   output** (#447) - the command fetched any `http(s)` input verbatim (no host check) and,
@@ -120,6 +257,7 @@ per-file diff commands.
   Existing state files need no migration: Step 2's candidate filter matches a posting to a stored
   entry by URL regardless of that entry's key, so a workspace whose entries predate the helper does
   not see its still-live postings re-presented as new.
+
 ## [1.7.1] - 2026-09-06
 
 ### Added
