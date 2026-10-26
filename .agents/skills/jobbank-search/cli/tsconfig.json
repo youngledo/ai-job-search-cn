@@ -4,7 +4,7 @@
     "module": "ESNext",
     "moduleResolution": "bundler",
     "lib": ["ESNext"],
-    "types": ["bun-types"],
+    "types": ["bun"],
     "strict": true,
     "noImplicitAny": true,
     "strictNullChecks": true,
