@@ -254,6 +254,8 @@ xelatex -interaction=nonstopmode cover_example.tex
 
 你可以同时使用两套工作流：
 
+通用 `/apply` 会先对岗位做确定性完整性检查（隐藏文字、不可见字符、指令形态的句子、隐藏链接），一行结论后再进入评估；抓取和审阅代理只读。
+
 - 使用 `/china ...` 处理中国大陆岗位、BOSS 打招呼、中文材料和面试准备。
 - 使用 `/setup`、`/apply`、`/rank`、`/interview`、`/outcome` 处理通用或英文申请流程。
 - `/gmail-sync` 会在写入前让你确认 Gmail 中识别出的申请状态；`/notion-sync` 提供只读 Notion 看板；`/html-report` 生成离线仪表盘；`/upskill` 分析岗位技能差距。
@@ -358,10 +360,12 @@ ai-job-search/
 │   ├── check_framework_version.py     # CI check: framework_version bumped when skill files change
 │   ├── check_upstream_updates.py      # Preview which personalized files an upstream update touches
 │   ├── convert_salary_excel.py        # Convert salary Excel to JSON
+│   ├── fetch_page.py                  # GET-only browser-header retry for 403s (robots.txt enforced)
 │   ├── install_portal_clis.py         # Install every discovered portal CLI (bun install)
 │   ├── lint_skills.py                 # CI lint for skills, commands, settings.json
+│   ├── posting_guard.py               # Integrity gate: strip hidden text, flag injection-shaped lines
 │   ├── robots_check.py                # Gate the browser-header retry against robots.txt
-│   ├── security_guards.py             # CI guards: permission allowlist, gitignore rules, manifests
+│   ├── security_guards.py             # CI guards: permission allow/ask/deny, skill grants, gitignore, manifests
 │   ├── upstream_triage.py             # Sort upstream commits into worth-reviewing vs probably-skip
 │   ├── verify_layout.py               # Measure a compiled PDF's page layout (holes, orphans, footer collisions)
 │   ├── verify_pdf.py                  # Verify a compiled PDF's page count and extractable text
