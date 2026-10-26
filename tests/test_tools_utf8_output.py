@@ -158,7 +158,7 @@ class ToolsWriteUtf8(unittest.TestCase):
         subprocess.run(["git", "init", "-b", "master"], cwd=repo, check=True, capture_output=True)
         subprocess.run(["git", "config", "user.name", "Test"], cwd=repo, check=True, capture_output=True)
         subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=repo, check=True, capture_output=True)
-        subprocess.run(["git", "remote", "add", "upstream", "https://github.com/MadsLorentzen/ai-job-search.git"], cwd=repo, check=True, capture_output=True)
+        subprocess.run(["git", "remote", "add", "upstream", "https://github.com/ai-job-search-dev/ai-job-search.git"], cwd=repo, check=True, capture_output=True)
         (repo / "file.txt").write_text("hello\n", encoding="utf-8")
         subprocess.run(["git", "add", "file.txt"], cwd=repo, check=True, capture_output=True)
         subprocess.run(["git", "commit", "-m", "init"], cwd=repo, check=True, capture_output=True)

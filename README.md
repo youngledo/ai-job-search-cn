@@ -49,7 +49,7 @@ Claude 帮你评估岗位、生成 BOSS 直聘打招呼话术、招聘者私信�
 
 ## 前置要求
 
-- [Claude Code](https://claude.com/claude-code) CLI。Claude Code 没有免费档：需要 Claude Pro/Max/Team 订阅，或 Anthropic API credits（按 token 计费，偶尔使用通常更便宜）。如果使用 Codex、Antigravity、Gemini CLI 等其他代理工具，请先看 [`AGENTS.md`](AGENTS.md)；门户搜索技能可直接使用，完整工作流适配见 [社区 fork 讨论](https://github.com/MadsLorentzen/ai-job-search/discussions/78)。
+- [Claude Code](https://claude.com/claude-code) CLI。Claude Code 没有免费档：需要 Claude Pro/Max/Team 订阅，或 Anthropic API credits（按 token 计费，偶尔使用通常更便宜）。如果使用 Codex、Antigravity、Gemini CLI 等其他代理工具，请先看 [`AGENTS.md`](AGENTS.md)；门户搜索技能可直接使用，完整工作流适配见 [社区 fork 讨论](https://github.com/ai-job-search-dev/ai-job-search/discussions/78)。
 - Python 3.10+。
 - 可选：LaTeX 发行版，例如 TeX Live、MacTeX、TinyTeX 或 MiKTeX。
 - 可选：`pdftotext`，用于通用 `/apply` 工作流的 ATS 文本层检查。
@@ -64,7 +64,7 @@ Claude 帮你评估岗位、生成 BOSS 直聘打招呼话术、招聘者私信�
 ### 1. Fork and clone
 
 ```bash
-gh repo fork MadsLorentzen/ai-job-search --clone
+gh repo fork ai-job-search-dev/ai-job-search --clone
 cd ai-job-search
 ```
 
@@ -288,7 +288,7 @@ xelatex -interaction=nonstopmode cover_example.tex
 
 ## 上游通用功能（英文文档）
 
-本仓库 fork 自 [MadsLorentzen/ai-job-search](https://github.com/MadsLorentzen/ai-job-search)，保留了
+本仓库 fork 自 [ai-job-search-dev/ai-job-search](https://github.com/ai-job-search-dev/ai-job-search)，保留了
 上游的全部通用工作流（英文）。与中国市场并行的常用命令：
 
 - `/setup`：通用 onboarding（可指向 `documents/` 文件夹、粘贴 CV 或交互式访谈）。
@@ -385,7 +385,7 @@ ai-job-search/
 - `tools/security_guards.py`：CI 供应链守卫（权限白名单、gitignore 规则、manifest 检查、pinned actions）。
 - `.github/workflows/ci.yml`：LaTeX 烟雾编译、skill lint、CLI typecheck。
 
-详细使用说明见上游 [README](https://github.com/MadsLorentzen/ai-job-search#readme)、
+详细使用说明见上游 [README](https://github.com/ai-job-search-dev/ai-job-search#readme)、
 [SETUP.md](SETUP.md)、[CONTRIBUTING.md](CONTRIBUTING.md)。
 
 ## Customization
@@ -442,7 +442,7 @@ The four Danish CLI tools in `.agents/skills/` (Jobbank, Jobdanmark, Jobindex, J
 
 Give it your local job board's URL. The command investigates the portal (search-URL pattern, result-page structure, robots.txt/access rules), scaffolds a CLI skill with the same structure, commands, and output contract as the shipped ones, and test-runs a live query before registering anything. Auth-walled portals are declined, and portals with restrictive terms get a prominent personal-use-only warning in the generated skill. The generated skill is market-specific and lives in your fork; the generator itself is the universal part.
 
-Maintaining a fork adapted to your market or language? Add it to the [Community forks & adaptations](https://github.com/MadsLorentzen/ai-job-search/discussions/78) thread so others can find it.
+Maintaining a fork adapted to your market or language? Add it to the [Community forks & adaptations](https://github.com/ai-job-search-dev/ai-job-search/discussions/78) thread so others can find it.
 
 For **country-agnostic** starting points outside Denmark, the repo ships two portal skills alongside the Danish demos:
 
@@ -453,11 +453,11 @@ For **country-agnostic** starting points outside Denmark, the repo ships two por
 
 Everything above adds up to an extension model, so here it is stated plainly. The framework has three extension points, and none of them require touching upstream:
 
-1. **Portal skills** - the module system for job boards. Every `*-search` skill is a self-contained folder under `.agents/skills/` with the same contract (a `search`/`detail` CLI, `--format json|table|plain` output, an `enabled:` flag in its `SKILL.md`, its own tests). `/scrape` auto-discovers any installed skill that follows the contract - nothing to register, nothing to wire up. `/add-portal` generates new ones; the [community portal index](https://github.com/MadsLorentzen/ai-job-search/discussions/78) catalogs the ones other forks have built.
+1. **Portal skills** - the module system for job boards. Every `*-search` skill is a self-contained folder under `.agents/skills/` with the same contract (a `search`/`detail` CLI, `--format json|table|plain` output, an `enabled:` flag in its `SKILL.md`, its own tests). `/scrape` auto-discovers any installed skill that follows the contract - nothing to register, nothing to wire up. `/add-portal` generates new ones; the [community portal index](https://github.com/ai-job-search-dev/ai-job-search/discussions/78) catalogs the ones other forks have built.
 2. **Document templates** - `/add-template` registers any CV or cover-letter toolchain that compiles to PDF from the command line, LaTeX or otherwise.
 3. **Evaluation criteria** - deal-breakers and preferences in your profile are free-form, and the evaluation rubric scores against whatever you put there. "Strong parental-leave terms", "minimum salary X per my union's scale", "no on-call" - each is one profile line, no code, and it carries real weight in `/rank` and `/apply` fit evaluations. Language is the one deal-breaker type with dedicated, structured handling: `/setup` captures every language you work in and your level (asked directly, or inferred from your CV/LinkedIn export) into a `Languages` table, and the Language Gate (`04-job-evaluation.md`) hard-rejects a posting that requires a language you haven't declared at all, while flagging - not auto-rejecting - one that asks for a higher level than you declared in a language you do work in, so a borderline case (a strict "fluent" bar against your own B1/B2, say) gets your judgment instead of a silent drop.
 
-**Borrowing a portal skill from another fork** is the intended way to get a board that upstream doesn't ship: find it in the [portal index](https://github.com/MadsLorentzen/ai-job-search/discussions/78), open that fork, and copy the one folder into your own `.agents/skills/`. Before you run it:
+**Borrowing a portal skill from another fork** is the intended way to get a board that upstream doesn't ship: find it in the [portal index](https://github.com/ai-job-search-dev/ai-job-search/discussions/78), open that fork, and copy the one folder into your own `.agents/skills/`. Before you run it:
 
 - **Read the code.** All of it - these CLIs run pre-approved on your machine (`.claude/settings.json` allowlists them) against your career data. Check that the only network calls go to the job board it claims to search, that `package.json` has no `dependencies` and no lifecycle scripts (`postinstall` etc.), and that nothing reads or writes outside its own folder.
 - **Run its tests offline** (`bun test` in the skill's `cli/` directory) - a well-built skill's tests pass with no network access.
@@ -465,7 +465,7 @@ Everything above adds up to an extension model, so here it is stated plainly. Th
 
 The copy step is manual on purpose. Your settings already allow installed portal skills to run without asking each time - so an installer that fetched them from third-party repos for you would skip the one check that matters: you, reading the code first. There isn't one, and that's a security decision rather than a missing feature.
 
-Market-specific *data sources* (a national salary database, local award-rate tables) follow the same pattern as portals: they belong in a market fork, shared via [#78](https://github.com/MadsLorentzen/ai-job-search/discussions/78), not upstream.
+Market-specific *data sources* (a national salary database, local award-rate tables) follow the same pattern as portals: they belong in a market fork, shared via [#78](https://github.com/ai-job-search-dev/ai-job-search/discussions/78), not upstream.
 
 ### Salary benchmarking
 
@@ -512,7 +512,7 @@ Thinking about a PR? Read [CONTRIBUTING.md](CONTRIBUTING.md) first - it explains
 
 ## Acknowledgements
 
-- [MadsLorentzen/ai-job-search](https://github.com/MadsLorentzen/ai-job-search) as the upstream project
+- [ai-job-search-dev/ai-job-search](https://github.com/ai-job-search-dev/ai-job-search) as the upstream project
 - [Mikkel Krogholm](https://github.com/mikkelkrogsholm) ([skills repo](https://github.com/mikkelkrogsholm/skills)) for the job search CLI skills
 - Built with [Claude Code](https://claude.com/claude-code) by [Anthropic](https://anthropic.com)
 

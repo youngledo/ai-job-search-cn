@@ -23,7 +23,7 @@ export function writeError(error: string, code: string): void {
 // cli/src, so a github.com URL here made every github.com link classify as an
 // installed job board instead of an unverified host. The owner/project name
 // already identifies the repo on GitHub.
-const UA = "MadsLorentzen/ai-job-search/1.0 (freehire-search)"
+const UA = "ai-job-search-dev/ai-job-search/1.0 (freehire-search)"
 
 /** The shared API response envelope: {data, meta, error}. */
 export interface Envelope<T> {

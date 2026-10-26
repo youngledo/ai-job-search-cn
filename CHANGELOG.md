@@ -25,6 +25,14 @@ per-file diff commands.
 
 ### Changed
 
+- **The repository moved to the `ai-job-search-dev` organization** - the canonical URL is now
+  `https://github.com/ai-job-search-dev/ai-job-search`. GitHub redirects the old
+  `MadsLorentzen/ai-job-search` address for web links, `git` remotes, raw files and the API, so
+  existing clones and forks keep working; update your `upstream` remote when convenient:
+  `git remote set-url upstream https://github.com/ai-job-search-dev/ai-job-search.git`. Every
+  in-tree reference (README, CONTRIBUTING, SECURITY, the upstream-check tool and its tests, the
+  workflows' upstream guard) now points at the new slug.
+
 - **`freehire-search` documents the `OR` and `title:` query operators** (#674,
   `.agents/skills/freehire-search/SKILL.md`, `url-reference.md`, `cli/README.md`, `--help`) -
   freehire's search parses an uppercase `OR` between up to five alternatives and a leading `title:`
@@ -272,7 +280,7 @@ per-file diff commands.
   `github.com` among them, so a "posting" published in any GitHub repo or gist classified as an
   installed portal instead of getting the `⚠ Unverified source host` warning. The User-Agent keeps
   the `owner/project/version` name freehire's API docs ask for and drops the optional URL:
-  `MadsLorentzen/ai-job-search/1.0 (freehire-search)`. The host-check test now lists `github.com` and
+  `ai-job-search-dev/ai-job-search/1.0 (freehire-search)`. The host-check test now lists `github.com` and
   `gist.github.com` postings among the hosts that must stay unverified.
 
 - **The `/reset` replay tests find a Bash that actually runs the script on Windows** (#671,
@@ -528,7 +536,7 @@ per-file diff commands.
   `.agents/skills/freehire-search/cli/src/helpers.ts`, `url-reference.md`) - the old
   `freehire-search-skill/1.0 (+https://freehire.me)` pointed at the API itself, so freehire's
   operators could not tell whose client it was. It now sends
-  `MadsLorentzen/ai-job-search/1.0 (+https://github.com/MadsLorentzen/ai-job-search; freehire-search)`,
+  `ai-job-search-dev/ai-job-search/1.0 (+https://github.com/ai-job-search-dev/ai-job-search; freehire-search)`,
   the `owner/project` form freehire's API docs ask for. Nothing behaves differently; the API does
   not gate on it.
 
@@ -2539,7 +2547,7 @@ per-file diff commands.
   Step 5 and then discarded. Both arrays are now stored verbatim and replaced (never
   accumulated) on `--all` re-ranks, so downstream consumers of `seen_jobs.json` can read
   real triage findings instead of re-deriving them. See
-  [discussion #258](https://github.com/MadsLorentzen/ai-job-search/discussions/258).
+  [discussion #258](https://github.com/ai-job-search-dev/ai-job-search/discussions/258).
 - **`/upskill` aggregate mode now ingests `/rank`'s recorded gaps** - previously it only
   read `job_search_tracker.csv` and *guessed* required skills from the `role`/`sector`/
   `notes` columns, even though `/rank` had already fetched and scored postings that never
@@ -2549,7 +2557,7 @@ per-file diff commands.
   skill list wherever both exist. The heatmap's Gap Source column now shows the
   recorded-vs-inferred split per skill, and the report header states how many jobs came
   from each source. Depends on #263 (`/rank` persisting `gaps`/`strengths`); see
-  [discussion #258](https://github.com/MadsLorentzen/ai-job-search/discussions/258).
+  [discussion #258](https://github.com/ai-job-search-dev/ai-job-search/discussions/258).
 
 ### Security & privacy
 
@@ -2559,7 +2567,7 @@ per-file diff commands.
   documents the safe alternative (a private repository with this repo as `upstream`), and
   `/setup` ends with a matching privacy note the moment profile data first lands in
   tracked files. Prompted by
-  [discussion #266](https://github.com/MadsLorentzen/ai-job-search/discussions/266).
+  [discussion #266](https://github.com/ai-job-search-dev/ai-job-search/discussions/266).
 - **The gitignore guard now covers two more personal-data rules** - `security_guards.py`
   requires `cover_letters/Cover_*.*` (the uppercase cover-letter naming variant `/apply`
   recognizes) and `cv/*.txt` (ATS text extractions of tailored CVs) in `.gitignore`, so a
@@ -2586,7 +2594,7 @@ per-file diff commands.
 - CONTRIBUTING's "run what CI runs" list is now complete - it previously omitted
   `tools/security_guards.py` and the exact `unittest` invocation, the precise checks a
   contributor PR had already failed on. Prompted by
-  [issue #262](https://github.com/MadsLorentzen/ai-job-search/issues/262).
+  [issue #262](https://github.com/ai-job-search-dev/ai-job-search/issues/262).
 
 ## [1.1.0] - 2026-07-30
 
@@ -2677,15 +2685,15 @@ At this baseline the framework provides:
 - **Cross-runtime support** - a root `AGENTS.md` pointer so Codex and Antigravity can
   discover the portable portal skills, with Claude Code as the reference runtime.
 
-[Unreleased]: https://github.com/MadsLorentzen/ai-job-search/compare/v1.7.3...HEAD
-[1.7.3]: https://github.com/MadsLorentzen/ai-job-search/compare/v1.7.2...v1.7.3
-[1.7.2]: https://github.com/MadsLorentzen/ai-job-search/compare/v1.7.1...v1.7.2
-[1.7.1]: https://github.com/MadsLorentzen/ai-job-search/compare/v1.7.0...v1.7.1
-[1.7.0]: https://github.com/MadsLorentzen/ai-job-search/compare/v1.6.0...v1.7.0
-[1.6.0]: https://github.com/MadsLorentzen/ai-job-search/compare/v1.5.0...v1.6.0
-[1.5.0]: https://github.com/MadsLorentzen/ai-job-search/compare/v1.4.0...v1.5.0
-[1.4.0]: https://github.com/MadsLorentzen/ai-job-search/compare/v1.3.0...v1.4.0
-[1.3.0]: https://github.com/MadsLorentzen/ai-job-search/compare/v1.2.0...v1.3.0
-[1.2.0]: https://github.com/MadsLorentzen/ai-job-search/compare/v1.1.0...v1.2.0
-[1.1.0]: https://github.com/MadsLorentzen/ai-job-search/compare/v1.0.0...v1.1.0
-[1.0.0]: https://github.com/MadsLorentzen/ai-job-search/releases/tag/v1.0.0
+[Unreleased]: https://github.com/ai-job-search-dev/ai-job-search/compare/v1.7.3...HEAD
+[1.7.3]: https://github.com/ai-job-search-dev/ai-job-search/compare/v1.7.2...v1.7.3
+[1.7.2]: https://github.com/ai-job-search-dev/ai-job-search/compare/v1.7.1...v1.7.2
+[1.7.1]: https://github.com/ai-job-search-dev/ai-job-search/compare/v1.7.0...v1.7.1
+[1.7.0]: https://github.com/ai-job-search-dev/ai-job-search/compare/v1.6.0...v1.7.0
+[1.6.0]: https://github.com/ai-job-search-dev/ai-job-search/compare/v1.5.0...v1.6.0
+[1.5.0]: https://github.com/ai-job-search-dev/ai-job-search/compare/v1.4.0...v1.5.0
+[1.4.0]: https://github.com/ai-job-search-dev/ai-job-search/compare/v1.3.0...v1.4.0
+[1.3.0]: https://github.com/ai-job-search-dev/ai-job-search/compare/v1.2.0...v1.3.0
+[1.2.0]: https://github.com/ai-job-search-dev/ai-job-search/compare/v1.1.0...v1.2.0
+[1.1.0]: https://github.com/ai-job-search-dev/ai-job-search/compare/v1.0.0...v1.1.0
+[1.0.0]: https://github.com/ai-job-search-dev/ai-job-search/releases/tag/v1.0.0
