@@ -54,6 +54,17 @@ per-file diff commands.
 
 ### Fixed
 
+- **The four `@bunli/core` portal CLIs typecheck on a clean install again** (#768, closes #765,
+  `.agents/skills/{jobbank,jobdanmark,jobindex,jobnet}-search/cli/package.json`,
+  `tests/test_portal_cli_types.py`) - `bun-types` accepts any `@types/node`, while `@bunli/core`
+  reaches `image-q`, which pins `@types/node` 16.9.1 exactly. bun 1.4.4 satisfies the open range
+  with that hoisted 16.9.1, whose globals have no `fetch`, `Response`, `URL` or `Headers`, so
+  `bun run typecheck` failed with TS2339/TS2749 errors in CI (which installs the latest bun and has
+  no committed lockfile) where bun 1.4.3 had hoisted a current `@types/node`. Each of the four CLIs
+  now declares `@types/node` 26.6.5 directly, so the top-level version no longer depends on the
+  resolver's placement, and a Python test fails if a CLI depending on `@bunli/core` drops the pin.
+  `freehire-search` and `linkedin-search` never pull `image-q` and are untouched.
+
 - **`freehire-search detail` no longer asks the API for a slug cut out of a URL on another
   host** (#623, fixes #622, `.agents/skills/freehire-search/cli/src/helpers.ts`, `tests/parsing.test.ts`,
   `tests/commands.test.ts`, `SKILL.md`) - `normalizeSlug` took the segment after `/jobs/` from
