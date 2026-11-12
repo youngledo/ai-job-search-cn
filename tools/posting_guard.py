@@ -97,14 +97,14 @@ VARIATION = re.compile("[︀-️\U000E0100-\U000E01EF]")
 VARIATION_RUN = re.compile("[︀-️\U000E0100-\U000E01EF]{2,}")
 
 HIDDEN_STYLE = re.compile(
-    r"display\s*:\s*none"
+    r"(?:^|;)\s*(?:display\s*:\s*none"
     r"|visibility\s*:\s*hidden"
     r"|opacity\s*:\s*0(?![.\d]*[1-9])"
     r"|font-size\s*:\s*0(?:\.0+)?(?:px|pt|em|rem|%)?(?![\d.])"
     r"|color\s*:\s*transparent"
     r"|clip\s*:\s*rect\(\s*0"
     r"|clip-path\s*:\s*inset\(\s*100%"
-    r"|(?:left|top|text-indent)\s*:\s*-\d{4,}px",
+    r"|(?:(?:margin-)?(?:left|top)|text-indent)\s*:\s*-\d{4,}px)",
     re.I,
 )
 PRESTRIP = re.compile(r"<!DOCTYPE[^>]*>|<\?[^>]*\?>", re.I)
@@ -288,6 +288,7 @@ def clean_html(markup: str):
     visible = []
     hidden_buf = []
     stack = []  # open element names, innermost last
+    nav_at = set()  # stack indices of open navigation elements
     hidden_at = None  # stack index of the element that started the hidden run
     pos = 0
 
@@ -308,7 +309,9 @@ def clean_html(markup: str):
             hidden_parts.append(block)
 
     def pop_to(index):
+        nonlocal nav_at
         del stack[index:]
+        nav_at = {i for i in nav_at if i < index}
         if hidden_at is not None and hidden_at >= len(stack):
             flush_hidden()
 
@@ -329,6 +332,11 @@ def clean_html(markup: str):
             if index is not None:
                 pop_to(index)
             continue  # a closer with no matching opener is ignored
+        is_nav = bool(nav_at) or name == "nav" or _attrs(raw_attrs).get("role", "").strip().lower() == "navigation"
+        is_hidden = (hidden_at is not None) or _is_hidden(raw_attrs)
+        if is_hidden and not is_nav:
+            for u in URL.findall(html.unescape(raw_attrs)):
+                hidden_parts.append(u)
         if name in VOID:
             continue
         if name in IMPLIED_END and stack and stack[-1] == name:
@@ -336,8 +344,11 @@ def clean_html(markup: str):
         elif name in CLOSES_P and stack and stack[-1] == "p":
             pop_to(len(stack) - 1)
         stack.append(name)
+        idx = len(stack) - 1
+        if is_nav:
+            nav_at.add(idx)
         if hidden_at is None and _is_hidden(raw_attrs):
-            hidden_at = len(stack) - 1
+            hidden_at = idx
     emit(markup[pos:])
     if hidden_at is not None:
         flush_hidden()

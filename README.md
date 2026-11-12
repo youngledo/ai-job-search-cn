@@ -63,13 +63,29 @@ Claude 帮你评估岗位、生成 BOSS 直聘打招呼话术、招聘者私信�
 
 ### 1. Fork and clone
 
+**For your own job search**, start from a private copy:
+
+```bash
+gh repo clone ai-job-search-dev/ai-job-search
+cd ai-job-search
+git remote rename origin upstream
+gh repo create ai-job-search --private --source=. --remote=origin --push
+gh repo set-default <your-github-username>/ai-job-search
+```
+
+**To contribute changes back**, fork instead:
+
 ```bash
 gh repo fork ai-job-search-dev/ai-job-search --clone
 cd ai-job-search
 ```
 
 > [!IMPORTANT]
-> **A fork of this repo is always public**. GitHub does not allow private forks of public repositories, and `/setup` writes your personal data into tracked files. For a personal job search, use a **private repository** with this repo as `upstream` instead. The setup is documented in [SETUP.md section 8](SETUP.md#8-pulling-upstream-updates-into-your-fork); fork only when you intend to contribute.
+> **A fork of this repo is always public** — GitHub does not allow private forks of
+> public repositories — and `/setup` (step 3 below) writes your personal data (name,
+> contact details, employment history, salary expectations) into **tracked** files.
+> Fork only to contribute. Updates work the same way from a private copy; see
+> [SETUP.md section 8](SETUP.md#8-pulling-upstream-updates-into-your-fork).
 
 ### 1. 启动 Claude Code
 
@@ -339,6 +355,7 @@ ai-job-search/
 │   ├── jobnet-search/                 # Jobnet.dk (Denmark, government portal)
 │   ├── linkedin-search/               # LinkedIn public job listings (country-agnostic)
 │   └── freehire-search/               # freehire.me tech job aggregator (multi-market, REST API)
+├── assets/                            # README artwork (Pip the mascot, animated SVG diagrams)
 ├── cv/
 │   └── main_example.tex               # moderncv LaTeX template
 ├── cover_letters/
@@ -355,6 +372,8 @@ ai-job-search/
 │   ├── references/                    # Reference letters
 │   └── applications/                  # Past application records (<company>_<role>/)
 ├── .github/workflows/ci.yml           # CI: LaTeX smoke compiles, skill lint, CLI typechecks
+├── .github/workflows/release.yml      # Weekly SemVer release from merged PR titles (skipped on forks)
+├── .github/workflows/upstream-watch.yml  # Weekly upstream triage into a rolling issue (reports only)
 ├── salary_lookup.py                   # Salary benchmarking tool (BYO data)
 ├── tools/
 │   ├── check_framework_version.py     # CI check: framework_version bumped when skill files change
@@ -362,9 +381,13 @@ ai-job-search/
 │   ├── convert_salary_excel.py        # Convert salary Excel to JSON
 │   ├── fetch_page.py                  # GET-only browser-header retry for 403s (robots.txt enforced)
 │   ├── install_portal_clis.py         # Install every discovered portal CLI (bun install)
+│   ├── job_key.py                     # Canonical job key (company + title slug) shared by /scrape and /rank
 │   ├── lint_skills.py                 # CI lint for skills, commands, settings.json
+│   ├── page_decode.py                 # Decode a saved page by its declared charset (EUC-KR, Shift_JIS, ...)
 │   ├── posting_guard.py               # Integrity gate: strip hidden text, flag injection-shaped lines
+│   ├── rank_state.py                  # /rank state: candidates, deadline sweep, apply scores to seen_jobs.json
 │   ├── robots_check.py                # Gate the browser-header retry against robots.txt
+│   ├── scrape_state.py                # /scrape state: candidates, store, history over seen_jobs.json
 │   ├── security_guards.py             # CI guards: permission allow/ask/deny, skill grants, gitignore, manifests
 │   ├── upstream_triage.py             # Sort upstream commits into worth-reviewing vs probably-skip
 │   ├── verify_layout.py               # Measure a compiled PDF's page layout (holes, orphans, footer collisions)
@@ -384,6 +407,8 @@ ai-job-search/
 - `salary_lookup.py` + `tools/convert_salary_excel.py`：自带数据的薪资基准工具。
 - `tools/security_guards.py`：CI 供应链守卫（权限白名单、gitignore 规则、manifest 检查、pinned actions）。
 - `.github/workflows/ci.yml`：LaTeX 烟雾编译、skill lint、CLI typecheck。
+- `tools/job_key.py`、`page_decode.py`、`rank_state.py`、`scrape_state.py`：岗位键、页面编码、排序与抓取状态。
+- `.github/workflows/release.yml` 与 `upstream-watch.yml`：每周版本发布，以及只报告、不自动合并的上游变更跟踪。
 
 详细使用说明见上游 [README](https://github.com/ai-job-search-dev/ai-job-search#readme)、
 [SETUP.md](SETUP.md)、[CONTRIBUTING.md](CONTRIBUTING.md)。
@@ -470,6 +495,8 @@ Market-specific *data sources* (a national salary database, local award-rate tab
 ### Salary benchmarking
 
 The salary tool works with any salary data you provide (union statistics, Glassdoor exports, personal research, etc.). See `tools/README_SALARY_TOOL.md` for the expected format and setup. If you don't have salary data, the salary step is simply skipped.
+
+`tools/convert_salary_excel.py` turns an Excel export into that format. When the company column also holds the city, as in the IDA workbook's "Firmanavn og by" column (`Ørsted A/S,Fredericia`), the converter splits each cell on its last comma and strips both parts, so `salary_lookup.py --city` can filter. A company name that itself contains ", " stays intact.
 
 ### Starting over
 
