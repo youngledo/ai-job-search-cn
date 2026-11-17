@@ -49,12 +49,12 @@ Claude 帮你评估岗位、生成 BOSS 直聘打招呼话术、招聘者私信�
 
 ## 前置要求
 
-- [Claude Code](https://claude.com/claude-code) CLI。Claude Code 没有免费档：需要 Claude Pro/Max/Team 订阅，或 Anthropic API credits（按 token 计费，偶尔使用通常更便宜）。如果使用 Codex、Antigravity、Gemini CLI 等其他代理工具，请先看 [`AGENTS.md`](AGENTS.md)；门户搜索技能可直接使用，完整工作流适配见 [社区 fork 讨论](https://github.com/ai-job-search-dev/ai-job-search/discussions/78)。
+- [Claude Code](https://claude.com/claude-code) CLI。Claude Code 没有免费档：需要 Claude Pro/Max/Team 订阅，或 Anthropic API credits（按 token 计费，偶尔使用通常更便宜）。如果使用 Codex、Antigravity、Gemini CLI 等其他代理工具，请先看 [`AGENTS.md`](AGENTS.md)；门户搜索技能复制到 `.agents/skills/` 后可直接使用，完整工作流适配见 [社区 fork 讨论](https://github.com/ai-job-search-dev/ai-job-search/discussions/78)。
 - Python 3.10+。
 - 可选：LaTeX 发行版，例如 TeX Live、MacTeX、TinyTeX 或 MiKTeX。
 - 可选：`pdftotext`，用于通用 `/apply` 工作流的 ATS 文本层检查。
 - 可选：`pypdf`（`pip install pypdf`），用于 `/apply` 的 ATS 文本提取；没有时回退到 `pdftotext`。
-- 可选：Bun，仅当你要使用上游提供的招聘搜索 CLI 时需要。
+- 可选：Bun，仅当你要从 [community-portals](https://github.com/ai-job-search-dev/community-portals) 复制招聘搜索 CLI 时需要。
 
 如果要编译中文 LaTeX 模板，需要安装支持中文字体的 TeX 环境。Linux 通常需要安装
 `fonts-noto-cjk`；macOS 和 Windows 通常可以使用系统自带中文字体。
@@ -95,13 +95,13 @@ cd ai-job-search
 
 > 公开仓库的 fork 不能设为私有，而 `/setup` 会将个人资料写入受 Git 追踪的文件。个人求职请使用以本仓库为 `upstream` 的私有仓库；具体步骤见 [SETUP.md 第 8 节](SETUP.md#8-pulling-upstream-updates-into-your-fork)。
 
-如需使用上游门户搜索 CLI，可先安装依赖：
+上游不再附带招聘门户 CLI。需要时从 [community-portals](https://github.com/ai-job-search-dev/community-portals) 复制到 `.agents/skills/`，再安装依赖：
 
 ```bash
 python3 tools/install_portal_clis.py
 ```
 
-它会在 `.agents/skills/*/cli/` 下自动发现并运行 `bun install`；带 install-time lifecycle script 的 CLI 会被跳过并报告。`--dry-run` 可预览。`linkedin-search` 和 `freehire-search` 可选安装：二者无运行时依赖，`bun install` 只拉取 TypeScript 类型。
+没有复制任何门户时，这个命令不会做任何事。它会在 `.agents/skills/*/cli/` 下自动发现并运行 `bun install`；带 install-time lifecycle script 的 CLI 会被跳过并报告。`--dry-run` 可预览。
 
 ```bash
 claude
@@ -290,7 +290,7 @@ xelatex -interaction=nonstopmode cover_example.tex
 - **`/upskill`** analyzes the gap between your profile, your tracked job postings, and your ranked-but-untracked postings (`/rank`'s recorded gaps in `job_scraper/seen_jobs.json`) — or a single posting via `/upskill <URL>`. Produces a prioritized heatmap of skill gaps and a learning plan with web-searched study resources and time estimates. Useful for career planning between applications.
 - **`/html-report`** generates a self-contained HTML dashboard from `job_search_tracker.csv` and the application archives — stat cards, status/sector/channel/funnel charts (inline SVG, no external dependencies), and a filterable applications table. Opens directly in a browser, fully offline. Re-run it any time after `/apply` or `/outcome` adds new entries.
 - **`/add-template`** registers your own CV or cover letter template (LaTeX, Typst, or another toolchain) in place of the stock ones. It captures the template's instructions (source extension, compile command, fonts, style rules, page limit), runs a mandatory test compile, and wires the template into `/apply`. See [Custom templates](#custom-templates) below.
-- **`/add-portal`** generates a job-portal search skill for a job board in your market. It investigates the portal (search URL pattern, result structure, access rules), scaffolds the CLI skill from the same structure as the shipped ones, and test-runs a live query before registering. See [Job search tools](#job-search-tools) below.
+- **`/add-portal`** generates a job-portal search skill for a job board in your market. It investigates the portal (search URL pattern, result structure, access rules), scaffolds the CLI skill from the same structure as the community portals, and test-runs a live query before registering. See [Job search tools](#job-search-tools) below.
 
 ## 隐私注意事项
 
@@ -348,13 +348,7 @@ ai-job-search/
 │   │   ├── job-scraper/               # Job search orchestration
 │   │   └── upskill/                   # /upskill skill gap analysis and learning plan
 │   └── settings.json                  # Claude Code permissions (shared, scoped)
-├── .agents/skills/                    # Job portal CLI tools
-│   ├── jobbank-search/                # Akademikernes Jobbank (Denmark)
-│   ├── jobdanmark-search/             # Jobdanmark.dk (Denmark)
-│   ├── jobindex-search/               # Jobindex.dk (Denmark)
-│   ├── jobnet-search/                 # Jobnet.dk (Denmark, government portal)
-│   ├── linkedin-search/               # LinkedIn public job listings (country-agnostic)
-│   └── freehire-search/               # freehire.me tech job aggregator (multi-market, REST API)
+├── .agents/skills/                    # Job portal CLIs you copy in from community-portals (none shipped)
 ├── assets/                            # README artwork (Pip the mascot, animated SVG diagrams)
 ├── cv/
 │   └── main_example.tex               # moderncv LaTeX template
@@ -402,8 +396,7 @@ ai-job-search/
 
 上游还包含：
 
-- `.agents/skills/`：丹麦门户 CLI（Jobbank、Jobdanmark、Jobindex、Jobnet）与
-  `linkedin-search`、`freehire-search` 等跨国聚合 skill。
+- `.agents/skills/`：默认不再附带门户 CLI。需要的看板从 [community-portals](https://github.com/ai-job-search-dev/community-portals) 复制进来（丹麦看板在 `portals/dk/`，LinkedIn 与 freehire 在 `portals/global/`）。
 - `salary_lookup.py` + `tools/convert_salary_excel.py`：自带数据的薪资基准工具。
 - `tools/security_guards.py`：CI 供应链守卫（权限白名单、gitignore 规则、manifest 检查、pinned actions）。
 - `.github/workflows/ci.yml`：LaTeX 烟雾编译、skill lint、CLI typecheck。
@@ -459,30 +452,25 @@ If you prefer doing it by hand, the manual route still works: update the guidanc
 
 ### Job search tools
 
-The four Danish CLI tools in `.agents/skills/` (Jobbank, Jobdanmark, Jobindex, Jobnet) demonstrate the pattern for building a job-portal integration for a specific market. If you're in a different country, run:
+Job portal CLIs live in [community-portals](https://github.com/ai-job-search-dev/community-portals), not in this repository. Danish boards are under `portals/dk/`, and country-agnostic `linkedin-search` and `freehire-search` are under `portals/global/`. Copy the ones you need into `.agents/skills/`. If your board has no portal yet, run:
 
 ```
 /add-portal
 ```
 
-Give it your local job board's URL. The command investigates the portal (search-URL pattern, result-page structure, robots.txt/access rules), scaffolds a CLI skill with the same structure, commands, and output contract as the shipped ones, and test-runs a live query before registering anything. Auth-walled portals are declined, and portals with restrictive terms get a prominent personal-use-only warning in the generated skill. The generated skill is market-specific and lives in your fork; the generator itself is the universal part.
+Give it your local job board's URL. The command investigates the portal (search-URL pattern, result-page structure, robots.txt/access rules), scaffolds a CLI skill with the same structure, commands, and output contract as the community portals, and test-runs a live query before registering anything. Auth-walled portals are declined, and portals with restrictive terms get a prominent personal-use-only warning in the generated skill. The generated skill is market-specific, so contribute it to [community-portals](https://github.com/ai-job-search-dev/community-portals) rather than here; the generator itself is the universal part.
 
 Maintaining a fork adapted to your market or language? Add it to the [Community forks & adaptations](https://github.com/ai-job-search-dev/ai-job-search/discussions/78) thread so others can find it.
-
-For **country-agnostic** starting points outside Denmark, the repo ships two portal skills alongside the Danish demos:
-
-- **`linkedin-search`** — built on LinkedIn's public, unauthenticated `jobs-guest` endpoints. Field-agnostic, **zero runtime dependencies** (runs with just `bun`), and takes the search location as an explicit flag, so it works for any market out of the box (`-l "Berlin, Germany"`, `-l "Mumbai, Maharashtra, India"`, `-l "Remote"`, …). Intended for **personal use only** — automated access is against LinkedIn's Terms of Service, so keep volume low. See `.agents/skills/linkedin-search/SKILL.md`.
-- **`freehire-search`** — queries the [freehire.me](https://freehire.me) aggregator's public REST API (JSON, no API key). Tech-focused (software, data, engineering, DevOps, remote), multi-market via facet flags (`--region`, `--country`, `--remote`), and **zero runtime dependencies**. Unlike the HTML-scraping Danish portals, results come back structured (skills, seniority, category). The backend is MIT-licensed and [self-hostable](https://github.com/strelov1/freehire) — point `FREEHIRE_API_URL` at your own instance if you prefer. See `.agents/skills/freehire-search/SKILL.md`.
 
 ### Extending the framework: portals, templates, criteria - and borrowing from other forks
 
 Everything above adds up to an extension model, so here it is stated plainly. The framework has three extension points, and none of them require touching upstream:
 
-1. **Portal skills** - the module system for job boards. Every `*-search` skill is a self-contained folder under `.agents/skills/` with the same contract (a `search`/`detail` CLI, `--format json|table|plain` output, an `enabled:` flag in its `SKILL.md`, its own tests). `/scrape` auto-discovers any installed skill that follows the contract - nothing to register, nothing to wire up. `/add-portal` generates new ones; the [community portal index](https://github.com/ai-job-search-dev/ai-job-search/discussions/78) catalogs the ones other forks have built.
+1. **Portal skills** - the module system for job boards. Every `*-search` skill is a self-contained folder under `.agents/skills/` with the same contract (a `search`/`detail` CLI, `--format json|table|plain` output, an `enabled:` flag in its `SKILL.md`, its own tests). `/scrape` auto-discovers any installed skill that follows the contract - nothing to register, nothing to wire up. [community-portals](https://github.com/ai-job-search-dev/community-portals) collects them, and `/add-portal` generates new ones.
 2. **Document templates** - `/add-template` registers any CV or cover-letter toolchain that compiles to PDF from the command line, LaTeX or otherwise.
 3. **Evaluation criteria** - deal-breakers and preferences in your profile are free-form, and the evaluation rubric scores against whatever you put there. "Strong parental-leave terms", "minimum salary X per my union's scale", "no on-call" - each is one profile line, no code, and it carries real weight in `/rank` and `/apply` fit evaluations. Language is the one deal-breaker type with dedicated, structured handling: `/setup` captures every language you work in and your level (asked directly, or inferred from your CV/LinkedIn export) into a `Languages` table, and the Language Gate (`04-job-evaluation.md`) hard-rejects a posting that requires a language you haven't declared at all, while flagging - not auto-rejecting - one that asks for a higher level than you declared in a language you do work in, so a borderline case (a strict "fluent" bar against your own B1/B2, say) gets your judgment instead of a silent drop.
 
-**Borrowing a portal skill from another fork** is the intended way to get a board that upstream doesn't ship: find it in the [portal index](https://github.com/ai-job-search-dev/ai-job-search/discussions/78), open that fork, and copy the one folder into your own `.agents/skills/`. Before you run it:
+**Copying a portal skill in** is the intended way to get a job board: find it in [community-portals](https://github.com/ai-job-search-dev/community-portals) (or in a fork from the [community index](https://github.com/ai-job-search-dev/ai-job-search/discussions/78)) and copy the one folder into your own `.agents/skills/`. Before you run it:
 
 - **Read the code.** All of it - these CLIs run pre-approved on your machine (`.claude/settings.json` allowlists them) against your career data. Check that the only network calls go to the job board it claims to search, that `package.json` has no `dependencies` and no lifecycle scripts (`postinstall` etc.), and that nothing reads or writes outside its own folder.
 - **Run its tests offline** (`bun test` in the skill's `cli/` directory) - a well-built skill's tests pass with no network access.
